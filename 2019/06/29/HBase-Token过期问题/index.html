@@ -6,15 +6,22 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>Archives: 2019 | Hexo</title>
+  <title>HBase Token过期问题 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http://yoursite.com/archives/2019/index.html">
+  <meta name="description" content="记录一个线上遇到的hbase get耗时抖动问题">
+<meta name="keywords" content="HBase">
+<meta property="og:type" content="article">
+<meta property="og:title" content="HBase Token过期问题">
+<meta property="og:url" content="http://yoursite.com/2019/06/29/HBase-Token过期问题/index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="记录一个线上遇到的hbase get耗时抖动问题">
 <meta property="og:locale" content="default">
+<meta property="og:image" content="https://sawiki2.nie.netease.com/media/image/gupeng/20181216235739.png">
+<meta property="og:updated_time" content="2019-06-30T03:07:12.264Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Hexo">
+<meta name="twitter:title" content="HBase Token过期问题">
+<meta name="twitter:description" content="记录一个线上遇到的hbase get耗时抖动问题">
+<meta name="twitter:image" content="https://sawiki2.nie.netease.com/media/image/gupeng/20181216235739.png">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -138,36 +145,116 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            
-  
-  
+            <article id="post-HBase-Token过期问题" class="article article-type-post " itemscope itemprop="blogPost">
+  <div class="article-inner">
     
-    
-      
-      
-      <section class="archives-wrap">
-        <div class="archive-year-wrap">
-          <a href="/archives/2019" class="archive-year">2019</a>
-        </div>
-        <div class="archives">
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/06/29/HBase-Token过期问题/" class="archive-article-date">
-  	<time datetime="2019-06-29T11:16:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-06-29</time>
-</a>
-        </div>
-    	 
+      <header class="article-header">
+        
   
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/06/29/HBase-Token过期问题/">HBase Token过期问题</a>
+    <h1 class="article-title" itemprop="name">
+      HBase Token过期问题
     </h1>
   
 
-        <div class="article-info info-on-right">
-          
+	<!--显示阅读次数-->
+	
+  	<br/>
+  	<a class="cloud-tie-join-count" href="javascript:void(0);" style="color:gray;font-size:14px;">
+  	<span class="icon-sort"></span>
+  	<span id="busuanzi_container_page_pv" style="color:#ef7522;font-size:14px;">
+            阅读数: <span id="busuanzi_value_page_pv"></span>次 &nbsp;&nbsp;
+ 	 </span>
+  	</a>
+  	
+        
+        <a href="/2019/06/29/HBase-Token过期问题/" class="archive-article-date">
+  	<time datetime="2019-06-29T11:16:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-06-29</time>
+</a>
+        
+      </header>
+    
+    <div align="center" class="post-count">
+    	字数：1.9k字 | 预计阅读时长：9分钟
+    </div>
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p><strong>记录一个线上遇到的hbase get耗时抖动问题</strong></p>
+<a id="more"></a>
+
+<h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><ol>
+<li>用户发现访问hbase集群单条get数据200次，平均时延2.2s，其中有25%超过3s，16%超过5s。</li>
+<li>经grafana确认hbase集群get_max时延在3.70 s-14.67 s(get_99th延时正常,都在15ms以内)，最大读取延时较长，对实时业务影响较为明显;其他集群也有类似情况</li>
+<li>经过日志分析排查，定位到原因是regionserver客户端访问HDFS文件的token过期以后,会导致长时间的重试等待</li>
+<li>决定调小regionserver客户端重试的时间窗口为10ms，以解决该性能问题;经过测试,性能有明显好转,get_max从10几秒降低到ms级别</li>
+</ol>
+<h2 id="问题排查过程"><a href="#问题排查过程" class="headerlink" title="问题排查过程"></a>问题排查过程</h2><ul>
+<li>首先通过ELK的日志分析系统，检索HBase集群上的get相关的日志信息，发现其中reposeTooSlow信息与业务提供的get延时信息吻合，从而确定regionserver读取数据，确实花费较长时间。</li>
+</ul>
+<ul>
+<li>为方便重现该问题，查看业务get数据的具体代码以及get的rowkey。通过测试程序的方式去集群Get少部分数据，能重复出现该现象，排除了gc，compaction等问题的可能。</li>
+</ul>
+<ul>
+<li>查看具体regionserver的日志，发现在每次get数据的responseTooSlow日志前，都会有相同的异常日志，通过日志分析出get的性能消耗在无谓的长时间等待。</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">2018-12-12 03:45:35,288 WARN  [B.defaultRpcServer.handler=3,queue=3,port=60020] hdfs.DFSClient: Connection failure: Failed to connect to /xxx.xxx.xxx.xxx:5004 for file /hbase/data/default/test_table/ded348e183e21d1a86e5f2b1925ecda0/cf/31bf712bb52b4d9bb59a3e203e0727b0 for block BP-736892195-xxx.xxx.xxx.xxx-1441736997640:blk_1124734013_50994813:java.io.IOException: DIGEST-MD5: IO error acquiring password</span><br><span class="line">....skip......</span><br><span class="line">2018-12-12 03:45:35,288 INFO  [B.defaultRpcServer.handler=3,queue=3,port=60020] hdfs.DFSClient: Could not obtain BP-736892195-xxx.xxx.xxx.xxx-1441736997640:blk_1124734013_50994813 from any node: java.io.IOException: No live nodes contain block BP-736892195-xxx.xxx.xxx.xxx-1441736997640:blk_1124734013_50994813 after checking nodes =[DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-dfacb1d9-b121-4948-bba7-f4cef3b21277,DISK],DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-dda60912-f863-4a48-aaea-24e7b8aab24d,DISK],DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-5441ff7b-8301-4a56-8a86-337c4295668f,DISK]], ignoredNodes = null No live nodes contain current block Block locations:DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-dfacb1d9-b121-4948-bba7-f4cef3b21277,DISK]DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-dda60912-f863-4a48-aaea-24e7b8aab24d,DISK] DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-5441ff7b-8301-4a56-8a86-337c4295668f,DISK] Dead nodes:  DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-dda60912-f863-4a48-aaea-24e7b8aab24d,DISK] DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-5441ff7b-8301-4a56-8a86-337c4295668f,DISK] DatanodeInfoWithStorage[xxx.xxx.xxx.xxx:5004,DS-dfacb1d9-b121-4948-bba7-f4cef3b21277,DISK]. Will get new block locations from namenode and retry...</span><br><span class="line">2018-12-12 03:45:35,288 WARN  [B.defaultRpcServer.handler=3,queue=3,port=60020] hdfs.DFSClient: DFS chooseDataNode: got # 1 IOException, will wait for 2598.2234736115165 msec.</span><br><span class="line">2018-12-12 03:45:37,914 WARN  [B.defaultRpcServer.handler=3,queue=3,port=60020] ipc.RpcServer: (responseTooSlow):&#123;&quot;call&quot;:&quot;Get(org.apache.hadoop.hbase.protobuf.generated.ClientProtos$GetRequest)&quot;,&quot;starttimems&quot;:1544557535280,&quot;responsesize&quot;:333,&quot;method&quot;:&quot;Get&quot;,&quot;param&quot;:&quot;region= test_table,17,1533199234105.ded348e183e21d1a86e5f2b1925ecda0., row=17#mo|13053|20687806&quot;,&quot;processingtimems&quot;:2634,&quot;client&quot;:&quot;xxx.xxx.xxx.xxx:23901&quot;,&quot;queuetimems&quot;:0,&quot;class&quot;:&quot;HRegionServer&quot;&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>分析日志的堆栈信息，确定是HDFS客户端读取文件时抛出的异常，进而查看HDFS源码，发现got # 1 IOException, will wait for的原因。block获取有效的datanode信息失败，导致客户端需要等待一定的时间才能再次访问namenode获取block对应的datanode的信息。由于长时间的等待直接导致get延时较长。</p>
+</li>
+<li><p>分析datanode的相应异常，发现是block的存放的三个datanode 因token过期而致验证失败。从而抛出异常信息。HDFS客户端由于没有选到有效的datanode进行读取，从而进入重试逻辑。在每次重试前需要等待一定时间才能进行下次重试。</p>
+</li>
+</ul>
+<p>客户端日志：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">  2018-12-12 19:51:39,087 WARN  [B.defaultRpcServer.handler=169,queue=17,port=60020] security.UserGroupInformation: No groups available for user promedata</span><br><span class="line">      2018-12-12 19:51:39,094 WARN  [B.defaultRpcServer.handler=169,queue=17,port=60020] hdfs.BlockReaderFactory: I/O error constructing remote block reader.</span><br><span class="line">      java.io.IOException: DIGEST-MD5: IO error acquiring password</span><br><span class="line">      ...skip...</span><br><span class="line">             org.apache.hadoop.hdfs.net.TcpPeerServer.peerFromSocketAndKey(TcpPeerServer.java:90)</span><br><span class="line">              at org.apache.hadoop.hdfs.DFSClient.newConnectedPeer(DFSClient.java:3111)</span><br><span class="line">              at org.apache.hadoop.hdfs.BlockReaderFactory.nextTcpPeer(BlockReaderFactory.java:778)</span><br><span class="line">              at org.apache.hadoop.hdfs.BlockReaderFactory.getRemoteBlockReaderFromTcp(BlockReaderFactory.java:693)</span><br><span class="line">              at org.apache.hadoop.hdfs.BlockReaderFactory.build(BlockReaderFactory.java:354)</span><br><span class="line">              at org.apache.hadoop.hdfs.DFSInputStream.actualGetFromOneDataNode(DFSInputStream.java:1103)</span><br><span class="line">              at org.apache.hadoop.hdfs.DFSInputStream.fetchBlockByteRange(DFSInputStream.java:1049)</span><br><span class="line">              at org.apache.hadoop.hdfs.DFSInputStream.read(DFSInputStream.java:1382)</span><br><span class="line">              at org.apache.hadoop.fs.FSDataInputStream.read(FSDataInputStream.java:89)</span><br><span class="line">...skip...</span><br><span class="line">              at org.apache.hadoop.hbase.regionserver.RSRpcServices.get(RSRpcServices.java:1792)</span><br><span class="line">              at org.apache.hadoop.hbase.protobuf.generated.ClientProtos$ClientService$2.callBlockingMethod(ClientProtos.java:31439)</span><br><span class="line">              at org.apache.hadoop.hbase.ipc.RpcServer.call(RpcServer.java:2035)</span><br><span class="line">              at org.apache.hadoop.hbase.ipc.CallRunner.run(CallRunner.java:107)</span><br><span class="line">              at org.apache.hadoop.hbase.ipc.RpcExecutor.consumerLoop(RpcExecutor.java:130)</span><br><span class="line">              at org.apache.hadoop.hbase.ipc.RpcExecutor$1.run(RpcExecutor.java:107)</span><br><span class="line">              at java.lang.Thread.run(Thread.java:748)</span><br><span class="line">  2018-12-12 19:51:39,095 WARN  [B.defaultRpcServer.handler=169,queue=17,port=60020] hdfs.DFSClient: Connection failure: Failed to connect to /xxx.xxx.xxx.xxx:5004 for file /hbase /data/default/test_table/c15f665b91c8613a23364be8afee36de/cf/942e51d894ea4aeb91878d5fe1bcf5ef_SeqId_12187_ for block   BP-736892195-xxx.xxx.xxx.xxx-1441736997640:blk_1124596643_50857443:java.io.IOException: DIGEST-MD5: IO error acquiring password</span><br><span class="line">      java.io.IOException: DIGEST-MD5: IO error acquiring password</span><br><span class="line">              at org.apache.hadoop.hdfs.protocol.datatransfer.sasl.DataTransferSaslUtil.readSaslMessageAndNegotiatedCipherOption(DataTransferSaslUtil.java:419)</span><br></pre></td></tr></table></figure>
+
+<p>datanode日志：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">   2018-12-12 19:51:39,099 ERROR org.apache.hadoop.hdfs.server.datanode.DataNode: dn27:5004:DataXceiver error processing unknown operation  src: /xxx.xxx.xxx.xxx:31732 dst: /10.160.12.237:5004</span><br><span class="line">       javax.security.sasl.SaslException: DIGEST-MD5: IO error acquiring password [Caused by org.apache.hadoop.security.token.SecretManager$InvalidToken: Block token with block_token_identifier (expiryDate=1544441676803, keyId=1934478494, userId=hbase, blockPoolId=BP-736892195-xxx.xxx.xxx.xxx-1441736997640, blockId=1124596643, access modes=[READ]) is expired.]</span><br><span class="line">	...skip...</span><br><span class="line">org.apache.hadoop.hdfs.server.datanode.DataXceiver.run(DataXceiver.java:181)</span><br><span class="line">               at java.lang.Thread.run(Thread.java:745)</span><br><span class="line">Caused by: org.apache.hadoop.security.token.SecretManager$InvalidToken: Block token with block_token_identifier (expiryDate=1544441676803, keyId=1934478494, userId=hbase, blockPoolId=BP-736892195-xxx.xxx.xxx.xxx-1441736997640, blockId=1124596643, access modes=[READ]) is expired.</span><br><span class="line">               at org.apache.hadoop.hdfs.security.token.block.BlockTokenSecretManager.retrievePassword(BlockTokenSecretManager.java:374)</span><br><span class="line">		...skip...</span><br></pre></td></tr></table></figure>
+
+<h2 id="HDFS-客户端读取block的基本分析"><a href="#HDFS-客户端读取block的基本分析" class="headerlink" title="HDFS 客户端读取block的基本分析"></a>HDFS 客户端读取block的基本分析</h2><p>  <img src="https://sawiki2.nie.netease.com/media/image/gupeng/20181216235739.png" alt="请在这里输入图片描述"></p>
+<ul>
+<li><p>DFSInputStream首先调用openInfo向NameNode发送解析文件路径的请求。</p>
+</li>
+<li><p>NameNode收到请求后交由blockManager进行解析，然后获取block的三个副本存储位置（DataNode）。</p>
+</li>
+<li><p>然后委托BlockTokenSecretManager生成token，token主要包括password以及expiryDate。</p>
+</li>
+<li><p>password依托BlockKey生成，该BlockKey在BlockTokenSecretManager初始化时生成，expiryDate则为当前时间+token过期时间（tokenLifetime）。</p>
+</li>
+<li><p>在BlockTokenSecretManager初始化后维护了一个BlockKey的集合，同时通过HeartbeatManager心跳携带BlockKey与DataNode进行同步。</p>
+</li>
+<li><p>在NameNode解析路径以及token信息后返回到DFSInputStream，DFSInputStream将block的信息缓存到本地。</p>
+</li>
+<li><p>DFSInputStream选择一个副本存放的DataNode，通过DataXceiver进行数据的读取。</p>
+</li>
+<li><p>DataXceiver则需要验证客户端是否有权限对该副本进行读取，验证的依据则是携带的token。</p>
+</li>
+<li><p>DataXceiver的权限验证工作委托给BlockTokenSecretManager，BlockTokenSecretManager首先检查token是否过期，然后在检查password是否正确。</p>
+</li>
+<li><p>如果验证成功，则读取block对应的数据返回，中间如果出现异常，则直接返回异常到客户端。</p>
+</li>
+<li><p>如果DataNode读取数据抛出异常，则会选择block的另外两个DataNode进行读取。如果剩下的两个DataNode都出现异常，则进入读取的重试逻辑。</p>
+</li>
+<li><p>重试前首先sleep一个重试时间窗口（dfs.client.retry.window.base）的时间，然后需要重新请求NameNode解析文件路径，并返回新的block对应的DataNode信息，以及重新分配的token，该token携带的是最新的password和expiryDate。</p>
+<blockquote>
+<p>重试时间规则：<br>waitTime=timewindow<em>failures + timewindow</em>(failures+1)*random<br>maxretry次数：3<br>random：(0,1)的随机数</p>
+</blockquote>
+</li>
+<li><p>获取到新的block信息后，替换客户端缓存的旧的block信息。</p>
+</li>
+</ul>
+<h2 id="解决办法"><a href="#解决办法" class="headerlink" title="解决办法"></a>解决办法</h2><p>目前我们通过调小regionserver客户端重试的时间窗口为10ms，以解决该性能问题;经过测试,性能有明显好转,get_max从10几秒降低到ms级别。</p>
+<blockquote>
+<p>dfs.client.retry.window.base<br>默认值：3000<br>修改值：10</p>
+</blockquote>
+<h2 id="待分析问题"><a href="#待分析问题" class="headerlink" title="待分析问题"></a>待分析问题</h2><p>token过期原因应该是regionserver读取数据时用得是DFSInputStream缓存的老的block信息，因而用到了过期的token进行数据读取。<br>需分析为何regionserver没有及时更新DFSInputStream缓存的block信息。</p>
+
+      
+
+      
+    </div>
+    <div class="article-info article-info-index">
+      
+      
 	<div class="article-tag tagcloud">
 		<i class="icon-price-tags icon"></i>
 		<ul class="article-tag-list">
@@ -179,19 +266,110 @@
 		</ul>
 	</div>
 
-          
+      
 
+      
+
+      
+        
+<div class="share-btn share-icons tooltip-left">
+  <div class="tooltip tooltip-east">
+    <span class="tooltip-item">
+      <a href="javascript:;" class="share-sns share-outer">
+        <i class="icon icon-share"></i>
+      </a>
+    </span>
+    <span class="tooltip-content">
+      <div class="share-wrap">
+        <div class="share-icons">
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="icon icon-weibo"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="icon icon-weixin"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="icon icon-qq"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="icon icon-douban"></i>
+          </a>
+          <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a>
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="icon icon-facebook"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="icon icon-twitter"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="icon icon-google"></i>
+          </a>
         </div>
-        <div class="clearfix"></div>
-    </header>
+      </div>
+    </span>
+  </div>
+</div>
+
+<div class="page-modal wx-share js-wx-box">
+    <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2019/06/29/HBase-Token过期问题/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div class="mask js-mask"></div>
+
+      
+      <div class="clearfix"></div>
+    </div>
   </div>
 </article>
-  
-  
-    </div></section>
+
   
 
-    
+<aside class="wrap-side-operation">
+    <div class="mod-side-operation">
+        
+        <div class="jump-container" id="js-jump-container" style="display:none;">
+            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
+                <i class="icon-font icon-back"></i>
+            </a>
+            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
+                <i class="icon-font icon-plane jump-plane"></i>
+            </div>
+        </div>
+        
+        
+        <div class="toc-container tooltip-left">
+            <i class="icon-font icon-category"></i>
+            <div class="tooltip tooltip-east">
+                <span class="tooltip-item">
+                </span>
+                <span class="tooltip-content">
+                    <div class="toc-article">
+                    <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#背景"><span class="toc-number">1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#问题排查过程"><span class="toc-number">2.</span> <span class="toc-text">问题排查过程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#HDFS-客户端读取block的基本分析"><span class="toc-number">3.</span> <span class="toc-text">HDFS 客户端读取block的基本分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#解决办法"><span class="toc-number">4.</span> <span class="toc-text">解决办法</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#待分析问题"><span class="toc-number">5.</span> <span class="toc-text">待分析问题</span></a></li></ol>
+                    </div>
+                </span>
+            </div>
+        </div>
+        
+    </div>
+</aside>
+
+
+
+  
+  
+  
+
+  
+
+  
+
+  
 
 
           </div>
@@ -217,8 +395,8 @@
 	var yiliaConfig = {
 		mathjax: false,
 		isHome: false,
-		isPost: false,
-		isArchive: true,
+		isPost: true,
+		isArchive: false,
 		isTag: false,
 		isCategory: false,
 		open_in_new: false,
