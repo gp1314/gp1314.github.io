@@ -6,15 +6,25 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>Archives | Hexo</title>
+  <title>HBase Token过期问题 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http://yoursite.com/archives/index.html">
+  <meta name="description" content="hbase mob功能调研">
+<meta name="keywords" content="HBase">
+<meta property="og:type" content="article">
+<meta property="og:title" content="HBase Token过期问题">
+<meta property="og:url" content="http://yoursite.com/2019/10/08/HBase-MOB功能调研/index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="hbase mob功能调研">
 <meta property="og:locale" content="default">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_read_write_hfile.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_family_struct.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_compaction_process.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_file_life_cycle.png">
+<meta property="og:updated_time" content="2019-10-08T11:59:09.993Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Hexo">
+<meta name="twitter:title" content="HBase Token过期问题">
+<meta name="twitter:description" content="hbase mob功能调研">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_read_write_hfile.png">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -138,36 +148,224 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            
+            <article id="post-HBase-MOB功能调研" class="article article-type-post " itemscope itemprop="blogPost">
+  <div class="article-inner">
+    
+      <header class="article-header">
+        
   
+    <h1 class="article-title" itemprop="name">
+      HBase Token过期问题
+    </h1>
   
-    
-    
-      
-      
-      <section class="archives-wrap">
-        <div class="archive-year-wrap">
-          <a href="/archives/2019" class="archive-year">2019</a>
-        </div>
-        <div class="archives">
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/10/08/HBase-MOB功能调研/" class="archive-article-date">
+
+	<!--显示阅读次数-->
+	
+  	<br/>
+  	<a class="cloud-tie-join-count" href="javascript:void(0);" style="color:gray;font-size:14px;">
+  	<span class="icon-sort"></span>
+  	<span id="busuanzi_container_page_pv" style="color:#ef7522;font-size:14px;">
+            阅读数: <span id="busuanzi_value_page_pv"></span>次 &nbsp;&nbsp;
+ 	 </span>
+  	</a>
+  	
+        
+        <a href="/2019/10/08/HBase-MOB功能调研/" class="archive-article-date">
   	<time datetime="2019-10-08T11:58:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-10-08</time>
 </a>
-        </div>
-    	 
-  
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/10/08/HBase-MOB功能调研/">HBase Token过期问题</a>
-    </h1>
-  
+        
+      </header>
+    
+    <div align="center" class="post-count">
+    	字数：1.7k字 | 预计阅读时长：6分钟
+    </div>
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p><strong>hbase mob功能调研</strong></p>
+<a id="more"></a>
 
-        <div class="article-info info-on-right">
-          
+
+<p>##术语</p>
+<ul>
+<li>LOB：大对象，多为pdf，word文档，图片，多媒体音视频。大多在几KB到上百MB大小。</li>
+<li>MOB：中等对象，相对于LOB，MOB比较小，大多在10MB以内。</li>
+<li>Metadata：元数据信息，这种数据大多在KB以内，也可能是MOB或LOB的一些标题，描述等。<br>##背景</li>
+<li>存储文档，图片，音频等中等大小的文件需求</li>
+<li>相对于metadata信息MOB数据更多是写多读少场景</li>
+</ul>
+<p>##MOB设计目标</p>
+<ul>
+<li>更好的，可预测的性能</li>
+<li>符合HBase的强一致性规则</li>
+<li>尽量少的api或者操作的变更</li>
+<li>能兼容hbase的现存特性，snapshot，bulkload，replication， security mechanism等</li>
+</ul>
+<p>##可能的方案</p>
+<p>###直接存在表中</p>
+<ul>
+<li>实现<ul>
+<li>将MOB数据存储在特定的column family中</li>
+<li>将metadata数据存储在其他的column family中</li>
+</ul>
+</li>
+<li>存在的问题<ul>
+<li>MOB数据占用rs大量的内存，造成flush和compaction都频繁触发</li>
+<li>随着MOB文件的堆积，compaction的IO时间更长，同时阻塞数据快的flush和更新</li>
+<li>region存储大量MOB，splite会更频繁，影响输数据块的更新<br>###MOB单独直接存在HDFS<ul>
+<li>实现</li>
+<li>用客户端控制，不参与hbase的LSM刷写结构</li>
+<li>存在的问题</li>
+<li>一个MOB对象存储在单个hdfs文件，相对于LOB文件，MOB又相对较小，hdfs的数据块默认64MB，单独存储一个文件资源利用率低</li>
+<li>将多个MOB对象存储在一个大的hdfs文件中，但是需要存储offset以及文件大小等信息，而且不好管理文件的TTL</li>
+<li>不支持snapshot，bulkload，replication， security mechanism等特性</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>##MOB实现</p>
+<ul>
+<li>同样是hbase + hdfs的方案，将metadata和MOB数据分离存储，但是该逻辑实现在rs端</li>
+<li>rs使用cache缓存mob数据</li>
+<li>将多个MOB对象存储在同一个hfile中</li>
+<li>从table中获取MOB文件存储的路径，在文件中找到目标MOB对象</li>
+</ul>
+<p>###读写</p>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_read_write_hfile.png" alt="请在这里输入图片描述"></p>
+<ul>
+<li><p>写入</p>
+<ul>
+<li><p>一个cell的大小如果超过MOB文件大小阈值，则被认为是一个MOB cell</p>
+</li>
+<li><p>写入时，MOB的cell仍然写入WAL以及memstore。flush时，metadata刷写到正常的storefile，MOB的cell刷写到MOB的特殊文件。同样写入到WAL保证了replicaiton机制的兼容。</p>
+</li>
+<li><p>MOB 单独存储在叫dummy region中，同样的表和clumn family的MOB 文件存储在一起</p>
+<blockquote>
+<p>MOB 文件的路径格式<br>/mobRootDir/data/namespace/tableQualifierName/dummyRegionName/columnFa milyName/${filename}<br>filename = MD5startkey + latestdata + UUID</p>
+</blockquote>
+</li>
+<li><p>cell格式</p>
+<blockquote>
+<p>timestamp= MOBlength + filename + tags<br>tags：标志cell为引用cell，同时实现 security mechanism</p>
+</blockquote>
+<p>  <img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_family_struct.png" alt="请在这里输入图片描述"></p>
+</li>
+</ul>
+</li>
+<li><p>读取</p>
+<ul>
+<li>scanner读取memtore与store file的MOB对象</li>
+<li>搜索store file时直接读取其中的filename，通过filename查找文件</li>
+<li>通过scan中设置属性参数，可以开启缓存MOB</li>
+</ul>
+</li>
+</ul>
+<p>###缓存</p>
+<ul>
+<li>存在两种缓存，其中一种是regionserver的普通数据缓存，一种是的MOB的缓存</li>
+<li>MOB缓存需要通过scan配置开启</li>
+<li>MOB缓存并不是缓存MOB对象，而是缓存打开的MOB文件的句柄</li>
+<li>MOB文件句柄缓存池是固定大小的，缓存池采用LRU置换算法</li>
+</ul>
+<p>###Housekeeping</p>
+<ul>
+<li>该机制是通过compaction将多个文件合并成一个大文件</li>
+<li>MOB对象过期并且minVersion为0，则将其删除。</li>
+<li>compation则将小的MOB文件合并成一个大的文件</li>
+</ul>
+<p>###compaction</p>
+<ul>
+<li>对于MOB对象有TTL功能，则需要有删除机制删除过期的MOB对象<br><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_compaction_process.png" alt="请在这里输入图片描述"></li>
+<li>首先统计需要删除的MOB文件，将其合并到一个大文件中</li>
+<li>通过startkey分组找出小的MOB文件</li>
+<li>如果有分组，则统计每个分组中中的较小的需要删除的MOB文件，并删除这些文件，将剩余文件合并为一个新的更大的文件，并更新storefile中的元数据信息</li>
+<li>提交合并的新的MOB文件，并通过blukload将元数据信息更新storefile</li>
+</ul>
+<p>####compaction变更</p>
+<ul>
+<li>在HBASE-11339引入MOB特性时的compation是基于daily partition 策略的，就是每个表的MOB region每天生成一个MOB文件<blockquote>
+<p>单表一年MOB文件数=365 * region数 * mob列族数</p>
+</blockquote>
+</li>
+<li>由于HDFS单目录下的文件数是有限的，所以开发了基于weekly, monthly的compaction策略</li>
+<li>Monthly策略<ul>
+<li>对于上个月的MOB文件，将其合并为一个大的MOB文件，其时间为最晚生成的MOB文件的时间</li>
+<li>对于当月的，但是是过去一周的MOB文件，将其执行weekly 策略，将过去一周的MOB文件合并为一个</li>
+<li>对于当周的，采用daily 策略，将当天生成的MOB文件合并为一个</li>
+</ul>
+</li>
+<li>Weekly policy<ul>
+<li>对于过去一周的MOB文件，将其执行weekly 策略，将过去一周的MOB文件合并为一个</li>
+<li>对于当周的，采用daily 策略，将当天生成的MOB文件合并为一个</li>
+</ul>
+</li>
+<li>启用方式  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&gt;create &apos;t1&apos;, &#123;NAME =&gt; &apos;f1&apos;, IS_MOB =&gt; true, MOB_THRESHOLD =&gt; 10, MOB_COMPACT_PARTITION_POLICY =&gt; &apos;weekly’&#125;</span><br><span class="line">&gt;alter &apos;t1&apos;, &#123;NAME =&gt; &apos;f1&apos;, MOB_COMPACT_PARTITION_POLICY =&gt; &apos;monthly&apos;&#125;</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<p>###MOB文件的生命周期</p>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_file_life_cycle.png" alt="请在这里输入图片描述"></p>
+<ul>
+<li>MOB文件的生命周期和storefiile文件基本一致</li>
+<li>在flush后在hdfs中创建文件</li>
+<li>被设置为删除后并不是马上删除，而是转移到archive目录中，只是存放的目录不太相同<blockquote>
+<p>普通storefile文件的目录：/{hbase.rootdir}/archive/data/ns/tn /region/cf<br>MOB文件的目录：/{hbase.rootdir} /archive/data/ns/tn/{mobRegion}/cf</p>
+</blockquote>
+</li>
+</ul>
+<p>###局限性</p>
+<ul>
+<li>列相关的filter过滤无法对MOB数据使用</li>
+<li>MOB对象不能太大（100KB~10MB），太大的对象占用太多rs的内存</li>
+</ul>
+<p>##实际存储文件验证</p>
+<ul>
+<li><p>测试向名为test_mob的cf列族开启MOB功能，向其中写入value为150000bytes的数据<br>###磁盘的文件格式<br>###索引数据格式</p>
+</li>
+<li><p>索引数据例子</p>
+  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">K: user5499001430055645681/cf:field0/1561457388587/Put/vlen=76/seqid=124334 V: \x00\x02I\xF066ea1bc943522ef02e5bce75bb94a2b120190625352c156227b04d27a106a48c2796abf9 T[0]: [Tag type : 5, value : ] T[1]: [Tag type : 6, value : test_mob]</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>key: 对于一个cell，rowkey + columnfamily:column + timestamp + keytype 为一个key</p>
+</li>
+<li><p>value:</p>
+<ul>
+<li>如果是MOB的话，会有1到多个的Tag</li>
+<li>value前面的16进制数字（\x00\x02I\xF0）应该是这条真实数据的大小</li>
+<li>后面的32位（066ea1bc943522ef02e5bce75bb94a2b1）为该region的startkey的MD5值</li>
+<li>再往后的8位（20190625）是该MOB对象的最后写入时间，更具这个值执行TTL</li>
+<li>再后面的32位（352c156227b04d27a106a48c2796abf9）是UUID</li>
+</ul>
+</li>
+<li><p>value的MD5 + time + UUID就是MOB对象存放在HDFS文件中的文件名</p>
+</li>
+</ul>
+<p>###MOB文件格式</p>
+<ul>
+<li><p>文件路径例子</p>
+  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/hbase/mobdir/data/default/test_mob/b9379618939597a3c3baf90f01293b96/cf/66ea1bc943522ef02e5bce75bb94a2b1201906254811dda9589041c28bdd8edce07eedaf</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>MOB文件统一放到hbase下的mobdir目录</li>
+<li>一个表的MOB专门有个region（b9379618939597a3c3baf90f01293b96）</li>
+<li>MOB文件名就是上面索引指向的文件名</li>
+</ul>
+</li>
+<li><p>MOB文件存放例子</p>
+  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">K: user5499001430055645681/cf:field0/1561457388587/Put/vlen=150000/seqid=124334 V: 64|*B&apos;(Qk2 ....</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>该文件也是hfile的格式，前面是有rowkey + columnfamily:column + timestamp + keytype 组成的key</li>
+<li>这里直接存储key，从而不用通过offset定位MOB对象在MOB文件的位置，通过key可以直接获取对应的值</li>
+</ul>
+</li>
+</ul>
+
+      
+      
+    </div>
+    <div class="article-info article-info-index">
+      
+      
 	<div class="article-tag tagcloud">
 		<i class="icon-price-tags icon"></i>
 		<ul class="article-tag-list">
@@ -179,57 +377,120 @@
 		</ul>
 	</div>
 
-          
+      
 
+      
+
+      
+        
+<div class="share-btn share-icons tooltip-left">
+  <div class="tooltip tooltip-east">
+    <span class="tooltip-item">
+      <a href="javascript:;" class="share-sns share-outer">
+        <i class="icon icon-share"></i>
+      </a>
+    </span>
+    <span class="tooltip-content">
+      <div class="share-wrap">
+        <div class="share-icons">
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="icon icon-weibo"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="icon icon-weixin"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="icon icon-qq"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="icon icon-douban"></i>
+          </a>
+          <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a>
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="icon icon-facebook"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="icon icon-twitter"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="icon icon-google"></i>
+          </a>
         </div>
-        <div class="clearfix"></div>
-    </header>
+      </div>
+    </span>
+  </div>
+</div>
+
+<div class="page-modal wx-share js-wx-box">
+    <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2019/10/08/HBase-MOB功能调研/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div class="mask js-mask"></div>
+
+      
+      <div class="clearfix"></div>
+    </div>
   </div>
 </article>
+
   
-    
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/06/29/HBase-Token过期问题/" class="archive-article-date">
-  	<time datetime="2019-06-29T11:16:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-06-29</time>
-</a>
+<nav id="article-nav">
+  
+  
+    <a href="/2019/06/29/HBase-Token过期问题/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">HBase Token过期问题</div>
+      <i class="icon-circle-right"></i>
+    </a>
+  
+</nav>
+
+
+<aside class="wrap-side-operation">
+    <div class="mod-side-operation">
+        
+        <div class="jump-container" id="js-jump-container" style="display:none;">
+            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
+                <i class="icon-font icon-back"></i>
+            </a>
+            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
+                <i class="icon-font icon-plane jump-plane"></i>
+            </div>
         </div>
-    	 
-  
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/06/29/HBase-Token过期问题/">HBase Token过期问题</a>
-    </h1>
-  
-
-        <div class="article-info info-on-right">
-          
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">HBase</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-          
-
+        
+        
+        <div class="toc-container tooltip-left">
+            <i class="icon-font icon-category"></i>
+            <div class="tooltip tooltip-east">
+                <span class="tooltip-item">
+                </span>
+                <span class="tooltip-content">
+                    <div class="toc-article">
+                    目录，不存在的…
+                    </div>
+                </span>
+            </div>
         </div>
-        <div class="clearfix"></div>
-    </header>
-  </div>
-</article>
+        
+    </div>
+</aside>
+
+
+
   
   
-    </div></section>
   
 
-    
+  
+
+  
+
+  
 
 
           </div>
@@ -259,8 +520,8 @@
 	var yiliaConfig = {
 		mathjax: false,
 		isHome: false,
-		isPost: false,
-		isArchive: true,
+		isPost: true,
+		isArchive: false,
 		isTag: false,
 		isCategory: false,
 		open_in_new: false,
