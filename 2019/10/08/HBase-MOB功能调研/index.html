@@ -6,12 +6,12 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>HBase Token过期问题 | Hexo</title>
+  <title>HBase MOB功能调研 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <meta name="description" content="hbase mob功能调研">
 <meta name="keywords" content="HBase">
 <meta property="og:type" content="article">
-<meta property="og:title" content="HBase Token过期问题">
+<meta property="og:title" content="HBase MOB功能调研">
 <meta property="og:url" content="http://yoursite.com/2019/10/08/HBase-MOB功能调研/index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="hbase mob功能调研">
@@ -20,9 +20,9 @@
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_family_struct.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_compaction_process.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_file_life_cycle.png">
-<meta property="og:updated_time" content="2019-10-08T11:59:09.993Z">
+<meta property="og:updated_time" content="2019-10-08T12:26:55.123Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="HBase Token过期问题">
+<meta name="twitter:title" content="HBase MOB功能调研">
 <meta name="twitter:description" content="hbase mob功能调研">
 <meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_read_write_hfile.png">
   
@@ -155,7 +155,7 @@
         
   
     <h1 class="article-title" itemprop="name">
-      HBase Token过期问题
+      HBase MOB功能调研
     </h1>
   
 
@@ -184,25 +184,22 @@
         <p><strong>hbase mob功能调研</strong></p>
 <a id="more"></a>
 
-
-<p>##术语</p>
-<ul>
+<h2 id="术语"><a href="#术语" class="headerlink" title="术语"></a>术语</h2><ul>
 <li>LOB：大对象，多为pdf，word文档，图片，多媒体音视频。大多在几KB到上百MB大小。</li>
 <li>MOB：中等对象，相对于LOB，MOB比较小，大多在10MB以内。</li>
-<li>Metadata：元数据信息，这种数据大多在KB以内，也可能是MOB或LOB的一些标题，描述等。<br>##背景</li>
+<li>Metadata：元数据信息，这种数据大多在KB以内，也可能是MOB或LOB的一些标题，描述等。</li>
+</ul>
+<h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><ul>
 <li>存储文档，图片，音频等中等大小的文件需求</li>
 <li>相对于metadata信息MOB数据更多是写多读少场景</li>
 </ul>
-<p>##MOB设计目标</p>
-<ul>
+<h2 id="MOB设计目标"><a href="#MOB设计目标" class="headerlink" title="MOB设计目标"></a>MOB设计目标</h2><ul>
 <li>更好的，可预测的性能</li>
 <li>符合HBase的强一致性规则</li>
 <li>尽量少的api或者操作的变更</li>
 <li>能兼容hbase的现存特性，snapshot，bulkload，replication， security mechanism等</li>
 </ul>
-<p>##可能的方案</p>
-<p>###直接存在表中</p>
-<ul>
+<h2 id="可能的方案"><a href="#可能的方案" class="headerlink" title="可能的方案"></a>可能的方案</h2><h3 id="直接存在表中"><a href="#直接存在表中" class="headerlink" title="直接存在表中"></a>直接存在表中</h3><ul>
 <li>实现<ul>
 <li>将MOB数据存储在特定的column family中</li>
 <li>将metadata数据存储在其他的column family中</li>
@@ -211,7 +208,7 @@
 <li>存在的问题<ul>
 <li>MOB数据占用rs大量的内存，造成flush和compaction都频繁触发</li>
 <li>随着MOB文件的堆积，compaction的IO时间更长，同时阻塞数据快的flush和更新</li>
-<li>region存储大量MOB，splite会更频繁，影响输数据块的更新<br>###MOB单独直接存在HDFS<ul>
+<li>region存储大量MOB，splite会更频繁，影响输数据块的更新<h3 id="MOB单独直接存在HDFS"><a href="#MOB单独直接存在HDFS" class="headerlink" title="MOB单独直接存在HDFS"></a>MOB单独直接存在HDFS</h3><ul>
 <li>实现</li>
 <li>用客户端控制，不参与hbase的LSM刷写结构</li>
 <li>存在的问题</li>
@@ -223,15 +220,13 @@
 </ul>
 </li>
 </ul>
-<p>##MOB实现</p>
-<ul>
+<h2 id="MOB实现"><a href="#MOB实现" class="headerlink" title="MOB实现"></a>MOB实现</h2><ul>
 <li>同样是hbase + hdfs的方案，将metadata和MOB数据分离存储，但是该逻辑实现在rs端</li>
 <li>rs使用cache缓存mob数据</li>
 <li>将多个MOB对象存储在同一个hfile中</li>
 <li>从table中获取MOB文件存储的路径，在文件中找到目标MOB对象</li>
 </ul>
-<p>###读写</p>
-<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_read_write_hfile.png" alt="请在这里输入图片描述"></p>
+<h3 id="读写"><a href="#读写" class="headerlink" title="读写"></a>读写</h3><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_read_write_hfile.png" alt="请在这里输入图片描述"></p>
 <ul>
 <li><p>写入</p>
 <ul>
@@ -260,29 +255,25 @@
 </ul>
 </li>
 </ul>
-<p>###缓存</p>
-<ul>
+<h3 id="缓存"><a href="#缓存" class="headerlink" title="缓存"></a>缓存</h3><ul>
 <li>存在两种缓存，其中一种是regionserver的普通数据缓存，一种是的MOB的缓存</li>
 <li>MOB缓存需要通过scan配置开启</li>
 <li>MOB缓存并不是缓存MOB对象，而是缓存打开的MOB文件的句柄</li>
 <li>MOB文件句柄缓存池是固定大小的，缓存池采用LRU置换算法</li>
 </ul>
-<p>###Housekeeping</p>
-<ul>
+<h3 id="Housekeeping"><a href="#Housekeeping" class="headerlink" title="Housekeeping"></a>Housekeeping</h3><ul>
 <li>该机制是通过compaction将多个文件合并成一个大文件</li>
 <li>MOB对象过期并且minVersion为0，则将其删除。</li>
 <li>compation则将小的MOB文件合并成一个大的文件</li>
 </ul>
-<p>###compaction</p>
-<ul>
+<h3 id="compaction"><a href="#compaction" class="headerlink" title="compaction"></a>compaction</h3><ul>
 <li>对于MOB对象有TTL功能，则需要有删除机制删除过期的MOB对象<br><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_compaction_process.png" alt="请在这里输入图片描述"></li>
 <li>首先统计需要删除的MOB文件，将其合并到一个大文件中</li>
 <li>通过startkey分组找出小的MOB文件</li>
 <li>如果有分组，则统计每个分组中中的较小的需要删除的MOB文件，并删除这些文件，将剩余文件合并为一个新的更大的文件，并更新storefile中的元数据信息</li>
 <li>提交合并的新的MOB文件，并通过blukload将元数据信息更新storefile</li>
 </ul>
-<p>####compaction变更</p>
-<ul>
+<h4 id="compaction变更"><a href="#compaction变更" class="headerlink" title="compaction变更"></a>compaction变更</h4><ul>
 <li>在HBASE-11339引入MOB特性时的compation是基于daily partition 策略的，就是每个表的MOB region每天生成一个MOB文件<blockquote>
 <p>单表一年MOB文件数=365 * region数 * mob列族数</p>
 </blockquote>
@@ -303,8 +294,7 @@
 
 </li>
 </ul>
-<p>###MOB文件的生命周期</p>
-<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_file_life_cycle.png" alt="请在这里输入图片描述"></p>
+<h3 id="MOB文件的生命周期"><a href="#MOB文件的生命周期" class="headerlink" title="MOB文件的生命周期"></a>MOB文件的生命周期</h3><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191008/mob_file_life_cycle.png" alt="请在这里输入图片描述"></p>
 <ul>
 <li>MOB文件的生命周期和storefiile文件基本一致</li>
 <li>在flush后在hdfs中创建文件</li>
@@ -313,15 +303,13 @@
 </blockquote>
 </li>
 </ul>
-<p>###局限性</p>
-<ul>
+<h3 id="局限性"><a href="#局限性" class="headerlink" title="局限性"></a>局限性</h3><ul>
 <li>列相关的filter过滤无法对MOB数据使用</li>
 <li>MOB对象不能太大（100KB~10MB），太大的对象占用太多rs的内存</li>
 </ul>
-<p>##实际存储文件验证</p>
-<ul>
-<li><p>测试向名为test_mob的cf列族开启MOB功能，向其中写入value为150000bytes的数据<br>###磁盘的文件格式<br>###索引数据格式</p>
-</li>
+<h2 id="实际存储文件验证"><a href="#实际存储文件验证" class="headerlink" title="实际存储文件验证"></a>实际存储文件验证</h2><ul>
+<li><p>测试向名为test_mob的cf列族开启MOB功能，向其中写入value为150000bytes的数据</p>
+<h3 id="磁盘的文件格式"><a href="#磁盘的文件格式" class="headerlink" title="磁盘的文件格式"></a>磁盘的文件格式</h3><h3 id="索引数据格式"><a href="#索引数据格式" class="headerlink" title="索引数据格式"></a>索引数据格式</h3></li>
 <li><p>索引数据例子</p>
   <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">K: user5499001430055645681/cf:field0/1561457388587/Put/vlen=76/seqid=124334 V: \x00\x02I\xF066ea1bc943522ef02e5bce75bb94a2b120190625352c156227b04d27a106a48c2796abf9 T[0]: [Tag type : 5, value : ] T[1]: [Tag type : 6, value : test_mob]</span><br></pre></td></tr></table></figure>
 </li>
@@ -339,8 +327,7 @@
 <li><p>value的MD5 + time + UUID就是MOB对象存放在HDFS文件中的文件名</p>
 </li>
 </ul>
-<p>###MOB文件格式</p>
-<ul>
+<h3 id="MOB文件格式"><a href="#MOB文件格式" class="headerlink" title="MOB文件格式"></a>MOB文件格式</h3><ul>
 <li><p>文件路径例子</p>
   <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/hbase/mobdir/data/default/test_mob/b9379618939597a3c3baf90f01293b96/cf/66ea1bc943522ef02e5bce75bb94a2b1201906254811dda9589041c28bdd8edce07eedaf</span><br></pre></td></tr></table></figure>
 
@@ -471,7 +458,7 @@
                 </span>
                 <span class="tooltip-content">
                     <div class="toc-article">
-                    目录，不存在的…
+                    <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#术语"><span class="toc-number">1.</span> <span class="toc-text">术语</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#背景"><span class="toc-number">2.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#MOB设计目标"><span class="toc-number">3.</span> <span class="toc-text">MOB设计目标</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#可能的方案"><span class="toc-number">4.</span> <span class="toc-text">可能的方案</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#直接存在表中"><span class="toc-number">4.1.</span> <span class="toc-text">直接存在表中</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#MOB单独直接存在HDFS"><span class="toc-number">4.2.</span> <span class="toc-text">MOB单独直接存在HDFS</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#MOB实现"><span class="toc-number">5.</span> <span class="toc-text">MOB实现</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#读写"><span class="toc-number">5.1.</span> <span class="toc-text">读写</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#缓存"><span class="toc-number">5.2.</span> <span class="toc-text">缓存</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Housekeeping"><span class="toc-number">5.3.</span> <span class="toc-text">Housekeeping</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#compaction"><span class="toc-number">5.4.</span> <span class="toc-text">compaction</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#compaction变更"><span class="toc-number">5.4.1.</span> <span class="toc-text">compaction变更</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#MOB文件的生命周期"><span class="toc-number">5.5.</span> <span class="toc-text">MOB文件的生命周期</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#局限性"><span class="toc-number">5.6.</span> <span class="toc-text">局限性</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#实际存储文件验证"><span class="toc-number">6.</span> <span class="toc-text">实际存储文件验证</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#磁盘的文件格式"><span class="toc-number">6.1.</span> <span class="toc-text">磁盘的文件格式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#索引数据格式"><span class="toc-number">6.2.</span> <span class="toc-text">索引数据格式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#MOB文件格式"><span class="toc-number">6.3.</span> <span class="toc-text">MOB文件格式</span></a></li></ol></li></ol>
                     </div>
                 </span>
             </div>
