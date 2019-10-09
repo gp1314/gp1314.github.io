@@ -6,15 +6,22 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>Hexo</title>
+  <title>HBase RS写HDFS失败挂死问题 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http://yoursite.com/index.html">
+  <meta name="description" content="记录一个线上遇到的hbase regionserver挂死问题">
+<meta name="keywords" content="HBase">
+<meta property="og:type" content="article">
+<meta property="og:title" content="HBase RS写HDFS失败挂死问题">
+<meta property="og:url" content="http://yoursite.com/2019/10/09/HBase-RS写HDFS失败挂死问题/index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="记录一个线上遇到的hbase regionserver挂死问题">
 <meta property="og:locale" content="default">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191009/pipeline_process.png">
+<meta property="og:updated_time" content="2019-10-09T13:23:00.933Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Hexo">
+<meta name="twitter:title" content="HBase RS写HDFS失败挂死问题">
+<meta name="twitter:description" content="记录一个线上遇到的hbase regionserver挂死问题">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191009/pipeline_process.png">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -138,21 +145,27 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            
-  
-    <article id="post-HBase-RS写HDFS失败挂死问题" class="article article-type-post  article-index" itemscope itemprop="blogPost">
+            <article id="post-HBase-RS写HDFS失败挂死问题" class="article article-type-post " itemscope itemprop="blogPost">
   <div class="article-inner">
     
       <header class="article-header">
         
   
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/10/09/HBase-RS写HDFS失败挂死问题/">HBase RS写HDFS失败挂死问题</a>
+    <h1 class="article-title" itemprop="name">
+      HBase RS写HDFS失败挂死问题
     </h1>
   
 
 	<!--显示阅读次数-->
 	
+  	<br/>
+  	<a class="cloud-tie-join-count" href="javascript:void(0);" style="color:gray;font-size:14px;">
+  	<span class="icon-sort"></span>
+  	<span id="busuanzi_container_page_pv" style="color:#ef7522;font-size:14px;">
+            阅读数: <span id="busuanzi_value_page_pv"></span>次 &nbsp;&nbsp;
+ 	 </span>
+  	</a>
+  	
         
         <a href="/2019/10/09/HBase-RS写HDFS失败挂死问题/" class="archive-article-date">
   	<time datetime="2019-10-09T13:06:13.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-10-09</time>
@@ -166,85 +179,77 @@
     <div class="article-entry" itemprop="articleBody">
       
         <p><strong>记录一个线上遇到的hbase regionserver挂死问题</strong></p>
-        
-      
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">HBase</a>
-        		</li>
-      		
-		</ul>
-	</div>
+<a id="more"></a>
 
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/10/09/HBase-RS写HDFS失败挂死问题/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
+<h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><p>在执行HDFS token过期问题的变更滚动重启hbase集群的rs后，在晚上离线业务高峰期部分regionserver挂死，导致离线无法链接部分regionserver整个任务卡死或失败，该问题连续两天都在凌晨业务高峰期出现。但后面3天没有出现挂死情况。</p>
+<h2 id="排查过程"><a href="#排查过程" class="headerlink" title="排查过程"></a>排查过程</h2><ul>
+<li><p>分析挂死节点日志，从表面上看是应为regionserver的WAL无法刷到磁盘，由于HBase是强一致性数据库，WAL写入失败直接影响HBase的一致性。WAL写入失败会直接导致regionserver进程退出。</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:31:35,332 ERROR [regionserver/gdc-dn33-hbase.i.nease.net/10.160.254.173:60020.logRoller] wal.FSHLog: Failed close of WAL writer hdfs://hbase/hbase/WALs/gdc-dn33-hbase.i.nease.net,60020,1545046188870/gdc-dn33-hbase.i.nease.net%2C60020%2C1545046188870.default.1545</span><br><span class="line">262216501, unflushedEntries=5</span><br><span class="line">org.apache.hadoop.hbase.regionserver.wal.FailedSyncBeforeLogCloseException: java.io.IOException: Failed to replace a bad datanode on the existing pipeline due to no more good datanodes being available to try. (Nodes: current=[DatanodeInfoWithStorage[10.160.254.173:5004,DS</span><br><span class="line">-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]], original=[DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254</span><br><span class="line">.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]]). The current failed datanode replacement policy is DEFAULT, and a client may configure this via &apos;dfs.client.block.write.replace-datanode-on-failure.policy&apos; in its configuration. </span><br><span class="line">...skip...</span><br><span class="line"> Caused by: java.io.IOException: Failed to replace a bad datanode on the existing pipeline due to no more good datanodes being available to try. (Nodes: current=[DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStor</span><br><span class="line">age[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]], original=[DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]]). The cu</span><br><span class="line">rrent failed datanode replacement policy is DEFAULT, and a client may configure this via &apos;dfs.client.block.write.replace-datanode-on-failure.policy&apos; in its configuration.</span><br><span class="line">at org.apache.hadoop.hdfs.DFSOutputStream$DataStreamer.findNewDatanode(DFSOutputStream.java:1162)</span><br></pre></td></tr></table></figure>
 
 
+</li>
+</ul>
+<ul>
+<li>检查异常抛出的源头，发现hdfs建立pipline写入失败，抛出有问题的节点为175。</li>
+</ul>
+<pre><code><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:29:14,530 WARN  [ResponseProcessor for block BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987] hdfs.DFSClient: Slow ReadProcessor read fields took 180085ms (threshold=30000ms); ack: seqno: -2 reply: 0 reply: 0 reply: 1 downstreamAckTimeNanos: 0, targets: [DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK], DatanodeInfoWithStorage[10.160.254.175:5004,DS-f9099a4e-5f90-4671-bdbc-3cdaae715876,DISK]]</span><br><span class="line">2018-12-20 08:29:14,530 WARN  [ResponseProcessor for block BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987] hdfs.DFSClient: DFSOutputStream ResponseProcessor exception  for block BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987</span><br><span class="line">java.io.IOException: Bad response ERROR for block BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987 from datanode DatanodeInfoWithStorage[10.160.254.175:5004,DS-f9099a4e-5f90-4671-bdbc-3cdaae715876,DISK]</span><br><span class="line">        at org.apache.hadoop.hdfs.DFSOutputStream$DataStreamer$ResponseProcessor.run(DFSOutputStream.java:1002)</span><br><span class="line">2018-12-20 08:29:14,531 WARN  [DataStreamer for file /hbase/WALs/gdc-dn33-hbase.i.nease.net,60020,1545046188870/gdc-dn33-hbase.i.nease.net%2C60020%2C1545046188870.default.1545262216501 block BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987] hdfs.DFSClient: Error Recovery for block BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987 in pipeline DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK], DatanodeInfoWithStorage[10.160.254.175:5004,DS-f9099a4e-5f90-4671-bdbc-3cdaae715876,DISK]: bad datanode DatanodeInfoWithStorage[10.160.254.175:5004,DS-f9099a4e-5f90-4671-bdbc-3cdaae715876,DISK]</span><br></pre></td></tr></table></figure></code></pre><ul>
+<li>接着分析175节点，发现175节点抛出读取socket的timeout异常，导致整个写入失败。从异常堆栈可看出，由于175节点无法读取上游节点packet超时导致。</li>
+</ul>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:29:14,527 INFO org.apache.hadoop.hdfs.server.datanode.DataNode: Exception for BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987</span><br><span class="line">java.net.SocketTimeoutException: 180000 millis timeout while waiting for channel to be ready for read. ch : java.nio.channels.SocketChannel[connected local=/10.160.254.175:5004 remote=/10.160.254.171:21567]</span><br><span class="line">        at org.apache.hadoop.net.SocketIOWithTimeout.doIO(SocketIOWithTimeout.java:164)</span><br><span class="line">        at org.apache.hadoop.net.SocketInputStream.read(SocketInputStream.java:161)</span><br><span class="line">        ...skip...</span><br><span class="line">        at org.apache.hadoop.hdfs.server.datanode.DataXceiver.writeBlock(DataXceiver.java:797)</span><br><span class="line">        at org.apache.hadoop.hdfs.protocol.datatransfer.Receiver.opWriteBlock(Receiver.java:169)</span><br><span class="line">        at org.apache.hadoop.hdfs.protocol.datatransfer.Receiver.processOp(Receiver.java:106)</span><br><span class="line">        at org.apache.hadoop.hdfs.server.datanode.DataXceiver.run(DataXceiver.java:244)</span><br><span class="line">        at java.lang.Thread.run(Thread.java:745)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>从175节点上游171节点报出socket 链接重置，由于没有读取到175节点的确认信息，导致整个pipeline意外中断。</li>
+</ul>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:29:14,530 INFO org.apache.hadoop.hdfs.server.datanode.DataNode: PacketResponder: BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987, type=HAS_DOWNSTREAM_IN_PIPELINE</span><br><span class="line">java.io.EOFException: Premature EOF: no length prefix available</span><br><span class="line">        at org.apache.hadoop.hdfs.protocolPB.PBHelper.vintPrefixed(PBHelper.java:2241)</span><br><span class="line">        at org.apache.hadoop.hdfs.protocol.datatransfer.PipelineAck.readFields(PipelineAck.java:235)</span><br><span class="line">        at org.apache.hadoop.hdfs.server.datanode.BlockReceiver$PacketResponder.run(BlockReceiver.java:1246)</span><br><span class="line">        at java.lang.Thread.run(Thread.java:745)</span><br><span class="line">2018-12-20 08:29:14,532 WARN org.apache.hadoop.hdfs.server.datanode.DataNode: IOException in BlockReceiver.run():</span><br><span class="line">java.io.IOException: Connection reset by peer</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>由此该写入流程的pipeline进入了recovery阶段，恢复流程需要找到一个datanode替代175节点继续写入数据。接着客户端向namenode选择一个datanode 166 来替换175。由于pipeline中已经写入了部分数据，如果重新选择一个新的节点写入数据，需要将已经写入的数据传输到新节点上。那么到底传输多少数据合适呢？传输的数据必须是datanode 发送确认到namenode的数据，pipeline恢复也只恢复namenode确认的数据大小。那么选择哪个节点作为传输节点呢？2.6.0版本的hadoop默认选择有错误节点的上一个节点作为传输节点，这里就是171节点，但是171节点写入的数据不完整，171的处理逻辑是等待知道数据一致，最长等待3s返回，但是这个返回不是timeout异常返回，而是成功返回。</li>
+</ul>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:30:58,479 WARN org.apache.hadoop.hdfs.server.datanode.DataNode: DatanodeRegistration(10.160.254.171, datanodeUuid=f6272338-1e55-4fe7-be49-dfbaeff83c3a, infoPort=5006, infoSecurePort=0, ipcPort=50020, storageInfo=lv=-56;cid=CID-96a97fd8-f259-4c90-b75a-2d53f5f7d5ea;nsid=1118247656;c=0):Failed to transfer BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987 to 10.160.254.166:5004 got</span><br><span class="line">java.io.IOException: Need 781801 bytes, but only 781063 bytes available</span><br><span class="line">        at org.apache.hadoop.hdfs.server.datanode.BlockSender.waitForMinLength(BlockSender.java:473)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>对应在客户端上他不知道选址的datanode有问题，还以为副本传输成功了。然后建立了新的pipline尝试去写数据到下面的166，但是在166上没有传输过去副本，导致166找不到副本进行写入。</li>
+</ul>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:30:58,490 INFO org.apache.hadoop.hdfs.server.datanode.DataNode: Receiving BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987 src: /10.160.254.171:31554 dest: /10.160.254.166:5004</span><br><span class="line">2018-12-20 08:30:58,490 INFO org.apache.hadoop.hdfs.server.datanode.fsdataset.impl.FsDatasetImpl: Recover RBW replica BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987</span><br><span class="line">2018-12-20 08:30:58,490 INFO org.apache.hadoop.hdfs.server.datanode.DataNode: opWriteBlock BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987 received exception org.apache.hadoop.hdfs.server.datanode.ReplicaNotFoundException: Cannot append to a non-existent replica BP-767328006-10.160.12.248-1502870117154:1082209262</span><br><span class="line">2018-12-20 08:30:58,490 ERROR org.apache.hadoop.hdfs.server.datanode.DataNode: gdc-dn26-hbase.i.nease.net:5004:DataXceiver error processing WRITE_BLOCK operation  src: /10.160.254.171:31554 dst: /10.160.254.166:5004</span><br><span class="line">org.apache.hadoop.hdfs.server.datanode.ReplicaNotFoundException: Cannot append to a non-existent replica BP-767328006-10.160.12.248-1502870117154:1082209262</span><br><span class="line">        at org.apache.hadoop.hdfs.server.datanode.fsdataset.impl.FsDatasetImpl.getReplicaInfo(FsDatasetImpl.java:763)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>接着导致这次写入pipeline继续失败</li>
+</ul>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:30:58,491 INFO  [DataStreamer for file /hbase/WALs/gdc-dn33-hbase.i.nease.net,60020,1545046188870/gdc-dn33-hbase.i.nease.net%2C60020%2C1545046188870.default.1545262216501 block BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987] hdfs.DFSClient: Exception in createBlockOutputStream</span><br><span class="line">java.io.IOException: Bad connect ack with firstBadLink as 10.160.254.166:5004</span><br><span class="line">        at org.apache.hadoop.hdfs.DFSOutputStream$DataStreamer.createBlockOutputStream(DFSOutputStream.java:1584)</span><br></pre></td></tr></table></figure>
 
 
-  
-    <article id="post-HBase-MOB功能调研" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/10/08/HBase-MOB功能调研/">HBase MOB功能调研</a>
-    </h1>
-  
+<ul>
+<li>这样客户端一直尝试recovery写入的pipeline，以为是选择的datanode有问题，其实是选择复制的节点有问题，导致客户端一直找namenode要新的datanode，最有namenode再也没有符合条件的datanode，客户端报出</li>
+</ul>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:31:35,317 WARN  [DataStreamer for file /hbase/WALs/gdc-dn33-hbase.i.nease.net,60020,1545046188870/gdc-dn33-hbase.i.nease.net%2C60020%2C1545046188870.default.1545262216501 block BP-767328006-10.160.12.248-1502870117154:blk_1082209262_8468987] hdfs.DFSClient: DataStreamer Exception</span><br><span class="line">java.io.IOException: Failed to replace a bad datanode on the existing pipeline due to no more good datanodes being available to try. (Nodes: current=[DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]], original=[DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]]). The current failed datanode replacement policy is DEFAULT, and a client may configure this via &apos;dfs.client.block.write.replace-datanode-on-failure.policy&apos; in its configuration.</span><br><span class="line">        at org.apache.hadoop.hdfs.DFSOutputStream$DataStreamer.findNewDatanode(DFSOutputStream.java:1162)</span><br><span class="line">        ...skip...</span><br><span class="line">2018-12-20 08:31:35,318 WARN  [sync.4] hdfs.DFSClient: Error while syncing</span><br></pre></td></tr></table></figure>
 
-	<!--显示阅读次数-->
-	
-        
-        <a href="/2019/10/08/HBase-MOB功能调研/" class="archive-article-date">
-  	<time datetime="2019-10-08T11:58:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-10-08</time>
-</a>
-        
-      </header>
-    
-    <div align="center" class="post-count">
-    	字数：1.7k字 | 预计阅读时长：6分钟
-    </div>
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p><strong>hbase mob功能调研</strong></p>
-        
+<ul>
+<li>最后regionserver表示无法写入wal，只能导致进程退出。</li>
+</ul>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">2018-12-20 08:31:35,332 ERROR [regionserver/gdc-dn33-hbase.i.nease.net/10.160.254.173:60020.logRoller] wal.FSHLog: Failed close of WAL writer hdfs://hbase/hbase/WALs/gdc-dn33-hbase.i.nease.net,60020,1545046188870/gdc-dn33-hbase.i.nease.net%2C60020%2C1545046188870.default.1545</span><br><span class="line">262216501, unflushedEntries=5</span><br><span class="line">org.apache.hadoop.hbase.regionserver.wal.FailedSyncBeforeLogCloseException: java.io.IOException: Failed to replace a bad datanode on the existing pipeline due to no more good datanodes being available to try. (Nodes: current=[DatanodeInfoWithStorage[10.160.254.173:5004,DS</span><br><span class="line">-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]], original=[DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254</span><br><span class="line">.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]]). The current failed datanode replacement policy is DEFAULT, and a client may configure this via &apos;dfs.client.block.write.replace-datanode-on-failure.policy&apos; in its configuration.</span><br><span class="line">        at org.apache.hadoop.hbase.regionserver.wal.FSHLog$SafePointZigZagLatch.ch</span><br><span class="line">        ...skip...</span><br><span class="line">        2018-12-20 08:31:35,335 WARN  [regionserver/gdc-dn33-hbase.i.nease.net/10.160.254.173:60020.append-pool1-t1] wal.FSHLog: Append sequenceId=8689602, requesting roll of WAL</span><br><span class="line">java.io.IOException: Failed to replace a bad datanode on the existing pipeline due to no more good datanodes being available to try. (Nodes: current=[DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]], original=[DatanodeInfoWithStorage[10.160.254.173:5004,DS-6be6151f-1329-437c-8b5d-6dbc4496b9e5,DISK], DatanodeInfoWithStorage[10.160.254.171:5004,DS-6cb3c79b-4224-42ed-af70-cc54ede59270,DISK]]). The current failed datanode replacement policy is DEFAULT, and a client may configure this via &apos;dfs.client.block.write.replace-datanode-on-failure.policy&apos; in its configuration.</span><br></pre></td></tr></table></figure>
+
+<h2 id="原理分析"><a href="#原理分析" class="headerlink" title="原理分析"></a>原理分析</h2><p> <img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20191009/pipeline_process.png" alt="请在这里输入图片描述"></p>
+<ol>
+<li>首先DFSOutStream执行writeTo操作向pipeline中写数据，由于在dn3节点写入超时导致写入失败，返回异常到DFSOutStream，DFSOutStream执行recovery流程恢复pipeline。</li>
+<li>执行恢复pipeline，首先需要找到一个datanode来替换dn3节点，客户端向namenode发起请求获取新的datanode节点dn4。</li>
+<li>客户端更新新的pipeline信息为dn1、dn3、dn4。由于之前已经向pipeline中写入了一部分数据，则需要将写入的数据在同步到dn4以便继续写入数据。</li>
+<li>客户端需要从dn1、dn2中选择一个节点作为源节点将数据复制到dn4节点，hdfs目前使用的2.6.0版本是直接选取错误节点dn3节点的上一个节点，也就是dn2作为源节点。</li>
+<li>在dn2节点执行transfer将已写入的副本数据拷贝过程中会检查副本磁盘上的大小与已经同namenode确认的写入大小是否一致，如果不一致默认重试等待3s。</li>
+<li>由于dn2节点磁盘大小与确认大小不一致，导致在该节点抛出异常，但是该异常并不会返回到客户端DFSOutStream。其默认返回给DFSOutStream的是一个SUCESS标志。所以客户端认为该次transfer成功。</li>
+<li>这样客户端有重新建立起了pipeline，继续执行数据写入操作，但是在数据传输到dn4时，由于副本并未由dn2拷贝到dn4，所以dn4找不到对应的replica进行数据的写入，该节点抛出异常返回到客户端。</li>
+<li>客户端剔除发生异常的dn4节点，请求namenode选择新的dn5重建pipeline，然后又再次选择dn2节点作为源节点同步已写入副本数据到dn5，再次同步失败。</li>
+<li>客户端如此循环重建pipeline直到namenode无法提供新的dn节点。</li>
+<li>最后最为客户端的regionserver无法写入wal数据到hdfs，为保证数据一致性只能执行异常退出。</li>
+</ol>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><ol>
+<li>首先该问题的根本原因是因为175节点，无法顺利执行socket的读取操作，从上游节点读取数据包到下游节点，具体原因需要重现当时挂死情况进行分析。</li>
+<li>在175节点写入失败执行pipeline的recovery流程中，其失败原因归结为hdfs源码问题，其没有充分考虑到源节点选择问题，单纯从一个节点拷贝数据，其异常处理也没有成功反馈到上游节点，导致出现无效循环而失败退出。但是在更高版本的hadoop已经改进了源节点的选择逻辑，可以避免该问题的出现。</li>
+<li>在pipeline执行recovery的过程也有其他模式，具体参考：<blockquote>
+<p><strong>dfs.client.block.write.replace-datanode-on-failure.policy</strong><br><strong>ALWAYS</strong>: 总是添加新的DN<br><strong>NEVER</strong>: 从不添加新的DN<br><strong>DEFAULT</strong>: 设r是副本数，n是要写的DN数。在r&gt;=3并且floor(r/2)&gt;=n或者r&gt;n(前提是文件hflushed/appended)时添加新的DN。<br><strong>dfs.client.block.write.replace-datanode-on-failure.enable</strong><br>是否开启写入失败时替换dn的操作（默认为true）</p>
+</blockquote>
+</li>
+</ol>
+
       
       
     </div>
@@ -265,16 +270,76 @@
       
 
       
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/10/08/HBase-MOB功能调研/">展开全文 >></a>
-        </p>
+
       
+        
+<div class="share-btn share-icons tooltip-left">
+  <div class="tooltip tooltip-east">
+    <span class="tooltip-item">
+      <a href="javascript:;" class="share-sns share-outer">
+        <i class="icon icon-share"></i>
+      </a>
+    </span>
+    <span class="tooltip-content">
+      <div class="share-wrap">
+        <div class="share-icons">
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="icon icon-weibo"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="icon icon-weixin"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="icon icon-qq"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="icon icon-douban"></i>
+          </a>
+          <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a>
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="icon icon-facebook"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="icon icon-twitter"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="icon icon-google"></i>
+          </a>
+        </div>
+      </div>
+    </span>
+  </div>
+</div>
+
+<div class="page-modal wx-share js-wx-box">
+    <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2019/10/09/HBase-RS写HDFS失败挂死问题/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div class="mask js-mask"></div>
 
       
       <div class="clearfix"></div>
     </div>
   </div>
 </article>
+
+  
+<nav id="article-nav">
+  
+  
+    <a href="/2019/10/08/HBase-MOB功能调研/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">HBase MOB功能调研</div>
+      <i class="icon-circle-right"></i>
+    </a>
+  
+</nav>
+
 
 <aside class="wrap-side-operation">
     <div class="mod-side-operation">
@@ -289,91 +354,32 @@
         </div>
         
         
-    </div>
-</aside>
-
-
-
-
-  
-    <article id="post-HBase-Token过期问题" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/06/29/HBase-Token过期问题/">HBase Token过期问题</a>
-    </h1>
-  
-
-	<!--显示阅读次数-->
-	
-        
-        <a href="/2019/06/29/HBase-Token过期问题/" class="archive-article-date">
-  	<time datetime="2019-06-29T11:16:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-06-29</time>
-</a>
-        
-      </header>
-    
-    <div align="center" class="post-count">
-    	字数：1.9k字 | 预计阅读时长：9分钟
-    </div>
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p><strong>记录一个线上遇到的hbase get耗时抖动问题</strong></p>
-        
-      
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">HBase</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/06/29/HBase-Token过期问题/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
+        <div class="toc-container tooltip-left">
+            <i class="icon-font icon-category"></i>
+            <div class="tooltip tooltip-east">
+                <span class="tooltip-item">
+                </span>
+                <span class="tooltip-content">
+                    <div class="toc-article">
+                    <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#背景"><span class="toc-number">1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#排查过程"><span class="toc-number">2.</span> <span class="toc-text">排查过程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#原理分析"><span class="toc-number">3.</span> <span class="toc-text">原理分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#总结"><span class="toc-number">4.</span> <span class="toc-text">总结</span></a></li></ol>
+                    </div>
+                </span>
             </div>
         </div>
         
-        
     </div>
 </aside>
 
 
 
+  
+  
+  
 
   
+
+  
+
   
 
 
@@ -403,8 +409,8 @@
     <script>
 	var yiliaConfig = {
 		mathjax: false,
-		isHome: true,
-		isPost: false,
+		isHome: false,
+		isPost: true,
 		isArchive: false,
 		isTag: false,
 		isCategory: false,
