@@ -16,16 +16,16 @@
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="NIO网络编程原理">
 <meta property="og:locale" content="default">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/iomode.jpg">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/bio.jpg">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/reuseio.jpg">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/iomode.jpg">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/single-reactor.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/mutiple-reactor.png">
-<meta property="og:updated_time" content="2020-04-19T16:23:52.407Z">
+<meta property="og:updated_time" content="2020-04-21T10:00:56.988Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="NIO网络编程原理">
 <meta name="twitter:description" content="NIO网络编程原理">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/bio.jpg">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/iomode.jpg">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -71,9 +71,9 @@
 			</ul>
 		</nav>
 		<nav>
-    			总文章数 4
+    			总文章数 6
 		</nav>
-		总字数 <span class="post-count">8.2k</span>
+		总字数 <span class="post-count">11.2k</span>
 		<nav class="header-smart-menu">
     		
     			
@@ -178,14 +178,35 @@
       </header>
     
     <div align="center" class="post-count">
-    	字数：1.5k字 | 预计阅读时长：5分钟
+    	字数：1.7k字 | 预计阅读时长：6分钟
     </div>
     <div class="article-entry" itemprop="articleBody">
       
         <p><strong>NIO网络编程原理</strong></p>
 <a id="more"></a>
-
-
+<p>##阻塞与同步</p>
+<ul>
+<li>所有IO操作都可以分为两个步骤：等待数据准备就绪，读写数据</li>
+<li>等待数据：就是等待数据从网络中传输到网卡，网卡发送中断通知内核数据到达，内核拷贝数据到内核缓冲区</li>
+<li>读写数据：从内核态的内核缓冲区拷贝数据到用户态的缓存</li>
+</ul>
+<p>###阻塞</p>
+<ul>
+<li>针对等待数据步骤，有两种方式：<ul>
+<li>阻塞：没有准备好就挂起线程，等待数据准备完成</li>
+<li>非阻塞：不管是否准备好都返回结果</li>
+</ul>
+</li>
+</ul>
+<p>###同步</p>
+<ul>
+<li>针对读写数据步骤，有两种方式：<ul>
+<li>同步：用户态线程拷贝内核数据到缓存区</li>
+<li>异步：内核直接将数据拷贝到用户态的缓存区</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/iomode.jpg" alt></p>
 <h2 id="传统阻塞IO模型"><a href="#传统阻塞IO模型" class="headerlink" title="传统阻塞IO模型"></a>传统阻塞IO模型</h2><h3 id="基本模型"><a href="#基本模型" class="headerlink" title="基本模型"></a>基本模型</h3><ul>
 <li>传统阻塞模型叫做BIO（Blocking IO）</li>
 <li>BIO模型基于stream进行对数据进行读写，包括字节流(xxxStream)和字符流(xxxReader/xxxWriter)</li>
@@ -244,7 +265,6 @@
 </li>
 <li>由stream的流处理模式变为了block块处理模式，读写性能有提升</li>
 </ul>
-<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200419/iomode.jpg" alt></p>
 <h3 id="NIO可优化点"><a href="#NIO可优化点" class="headerlink" title="NIO可优化点"></a>NIO可优化点</h3><ul>
 <li>NIO提供零拷贝功能可以节约内核态到用户态的内存拷贝开销</li>
 <li>由于select进行IO复用只有一个线程，可以在加线程监控不同的channel实现更多的并发支持</li>
@@ -349,6 +369,15 @@
 
   
 <nav id="article-nav">
+  
+    <a href="/2020/05/06/HBase RPC/" id="article-nav-newer" class="article-nav-link-wrap">
+      <i class="icon-circle-left"></i>
+      <div class="article-nav-title">
+        
+          HBase RPC模型
+        
+      </div>
+    </a>
   
   
     <a href="/2019/10/09/HBase-RS写HDFS失败挂死问题/" id="article-nav-older" class="article-nav-link-wrap">

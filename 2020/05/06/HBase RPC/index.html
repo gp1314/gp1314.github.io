@@ -6,15 +6,22 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>Archives: 2019/6 | Hexo</title>
+  <title>HBase RPC模型 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http://yoursite.com/archives/2019/06/index.html">
+  <meta name="description" content="HBase RPC模型">
+<meta name="keywords" content="HBase">
+<meta property="og:type" content="article">
+<meta property="og:title" content="HBase RPC模型">
+<meta property="og:url" content="http://yoursite.com/2020/05/06/HBase RPC/index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="HBase RPC模型">
 <meta property="og:locale" content="default">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200506/rpc_server_reactor.png">
+<meta property="og:updated_time" content="2020-05-06T05:21:48.057Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Hexo">
+<meta name="twitter:title" content="HBase RPC模型">
+<meta name="twitter:description" content="HBase RPC模型">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200506/rpc_server_reactor.png">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -138,36 +145,106 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            
-  
-  
+            <article id="post-HBase RPC" class="article article-type-post " itemscope itemprop="blogPost">
+  <div class="article-inner">
     
-    
-      
-      
-      <section class="archives-wrap">
-        <div class="archive-year-wrap">
-          <a href="/archives/2019" class="archive-year">2019</a>
-        </div>
-        <div class="archives">
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/06/29/HBase-Token过期问题/" class="archive-article-date">
-  	<time datetime="2019-06-29T11:16:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-06-29</time>
-</a>
-        </div>
-    	 
+      <header class="article-header">
+        
   
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/06/29/HBase-Token过期问题/">HBase Token过期问题</a>
+    <h1 class="article-title" itemprop="name">
+      HBase RPC模型
     </h1>
   
 
-        <div class="article-info info-on-right">
-          
+	<!--显示阅读次数-->
+	
+  	<br/>
+  	<a class="cloud-tie-join-count" href="javascript:void(0);" style="color:gray;font-size:14px;">
+  	<span class="icon-sort"></span>
+  	<span id="busuanzi_container_page_pv" style="color:#ef7522;font-size:14px;">
+            阅读数: <span id="busuanzi_value_page_pv"></span>次 &nbsp;&nbsp;
+ 	 </span>
+  	</a>
+  	
+        
+        <a href="/2020/05/06/HBase RPC/" class="archive-article-date">
+  	<time datetime="2020-05-06T05:12:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2020-05-06</time>
+</a>
+        
+      </header>
+    
+    <div align="center" class="post-count">
+    	字数：1.3k字 | 预计阅读时长：4分钟
+    </div>
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p><strong>HBase RPC模型</strong></p>
+<a id="more"></a>
+
+<h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><ul>
+<li>通过分析HBase RPC 原理阅读HBase源码是一个常规切入点，HBase集群间的所有交互都是通过RPC完成,同时也为分析HBase网络部性能提供了依据。</li>
+<li>总的来时HBase RPC和Hadoop RPC采用框架都是一致的多线程Reactor模型，关于这个模型可参考上一章的NIO网络编程原理</li>
+</ul>
+<h2 id="通信模型"><a href="#通信模型" class="headerlink" title="通信模型"></a>通信模型</h2><h3 id="服务端"><a href="#服务端" class="headerlink" title="服务端"></a>服务端</h3><ul>
+<li><p>服务端的启动是在HRegionserver的构造函数中，下面介绍一下网络通信中的各个角色</p>
+</li>
+<li><p>listener：处理OP_ACCEPT的请求，接受新到来的连接，只有一个线程通过IO复用非阻塞处理到的连接，然后将这些连接分发到readers线程池，这里的分发算法就是轮询处理</p>
+</li>
+<li><p>readers：注册了OP_READ事件，读取socket上的数据进行解析，这里涉及逻辑较多，包括读取协议header，读取实际数据，适配安全逻辑等，我们现在只关心处理实际数据部分，他将数据读取后组成一个caller，将Caller交给scheduler</p>
+</li>
+<li><p>scheduler：该角色只是充当转发器，实现不同的转发逻辑，将caller转发给不同的执行器executor，执行器有不同的处理队列，比如带优先级队列，或者先进先出队列。现在包括两种（FifoRpcScheduler，SimpleRpcScheduler）</p>
+<ul>
+<li>SimpleRpcScheduler：默认以这种按请求优先级进行调度，将caller分发给executor</li>
+<li>FifoRpcScheduler：按照请求先进先出进行调度，没有优先级</li>
+</ul>
+</li>
+<li><p>executor：存放多个handler，但不是一个线程池，存在多种excutor实现不同的分发机制，这里的分发是将caller分发到不同的队列，以实现读写分离等分发逻辑。excutor还将分离的队列分发不同的handler进行处理。</p>
+<ul>
+<li>RWQueueRpcExecutor:读写分离的处理器，配置了读写分离参数才实例化，一般处理用户表请求</li>
+<li>BalancedQueueRpcExecutor:将caller放入一个随机选择的队列</li>
+<li>FastPathBalancedQueueRpcExecutor：因为随机选择一个队列可能负责该队列的handler正在处理请求造成响应延迟，该实例维护一个缓存队列，缓存热的有空闲的handler</li>
+</ul>
+</li>
+<li><p>handlers：处理caller的线程，将caller从队列中读出，调用caller的run方法</p>
+</li>
+<li><p>caller：调用客户端请求的方法，将结果交给responder</p>
+</li>
+<li><p>responder：处理返回的信息，他维护了一个返回队列，如果返回队列没有数据说明网络良好没有积压数据，则直接将返回信息同步发送给客户端，不提交队列；如果返回队列有数据，说明存在积压，将返回信息提交到队列中等待异步发送给客户端</p>
+<p>  <img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20200506/rpc_server_reactor.png" alt></p>
+<ol>
+<li>客户端发起连接请求到阻塞在select的Listener线程</li>
+<li>Listener线程接到客户端请求后注册OP_READ事件到channel</li>
+<li>客户端发起函数调用请求，reader线程读取请求的数据并根据协议解析包头和包内容（函数名，参数等）将其实例化为一个caller</li>
+<li>reader将该请求的caller发给scheduler进行分发，一般scheduler根据请求的优先级，是否为访问meta表等分发给不同的executor</li>
+<li>executor根据配置以及请求的类型交给不同的queue进行处理，比如配置了读写分离队列，executor将读请求发送到读队列</li>
+<li>一般一个队列对应多个handler线程，handler线程读取队列中的caller调用对应的函数，调用完成后，建结果直接发送给客户端</li>
+<li>如果responder队列不为空，说明结果存在积压，如果同步返回handler可能被夯住，则handler将结果发送到responder的结果缓存队列进行异步返回</li>
+<li>responder线程消费缓存队列的数据将结果返回给客户端，如果无法发送成功则丢弃结果</li>
+</ol>
+</li>
+</ul>
+<h2 id="参数说明"><a href="#参数说明" class="headerlink" title="参数说明"></a>参数说明</h2><ul>
+<li>hbase.ipc.server.read.threadpool.size：read读取网络请求的线程数</li>
+<li>hbase.regionserver.handler.count：调用caller处理请求的线程个数</li>
+<li>hbase.regionserver.metahandler.count：处理meta表的请求线程个数</li>
+<li>hbase.ipc.server.max.callqueue.length：caller请求队列的最大长度一般为handler个数的10倍</li>
+<li>hbase.ipc.server.max.callqueue.size：请求队列最大大小，默认不超过1G</li>
+<li>hbase.ipc.max.request.size：一个请求的最大大小，最大请求大小为callqueue.size除以4，默认256M</li>
+<li>hbase.ipc.server.callqueue.handler.factor：handler和请求队列的关系因子，请求队列个数为handler*factor</li>
+<li>hbase.rpc.timeout：rpc超时时间</li>
+<li>hbase.ipc.server.callqueue.read.ratio：设置该值表示进行读写分离模式，读handler个数为handler * read.ratio</li>
+<li>hbase.ipc.server.callqueue.scan.ratio：scan的handler占读handler的比例，scan handler个数为读handler个数*scan.ratio</li>
+<li>hbase.ipc.client.connection.maxidletime：connection空闲时间，实际判断值为该值*2，如果connection最新更新时间间隔超过该值2倍，则判断为超时，该值默认1s</li>
+<li>hbase.ipc.client.idlethreshold：connection超过该值就会执行检查清除connection逻辑，默认4000</li>
+<li>hbase.ipc.client.kill.max：一次清理connection的最大个数，默认10</li>
+</ul>
+
+      
+      
+    </div>
+    <div class="article-info article-info-index">
+      
+      
 	<div class="article-tag tagcloud">
 		<i class="icon-price-tags icon"></i>
 		<ul class="article-tag-list">
@@ -179,19 +256,129 @@
 		</ul>
 	</div>
 
-          
+      
 
+      
+
+      
+        
+<div class="share-btn share-icons tooltip-left">
+  <div class="tooltip tooltip-east">
+    <span class="tooltip-item">
+      <a href="javascript:;" class="share-sns share-outer">
+        <i class="icon icon-share"></i>
+      </a>
+    </span>
+    <span class="tooltip-content">
+      <div class="share-wrap">
+        <div class="share-icons">
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="icon icon-weibo"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="icon icon-weixin"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="icon icon-qq"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="icon icon-douban"></i>
+          </a>
+          <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a>
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="icon icon-facebook"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="icon icon-twitter"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="icon icon-google"></i>
+          </a>
         </div>
-        <div class="clearfix"></div>
-    </header>
+      </div>
+    </span>
+  </div>
+</div>
+
+<div class="page-modal wx-share js-wx-box">
+    <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2020/05/06/HBase RPC/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div class="mask js-mask"></div>
+
+      
+      <div class="clearfix"></div>
+    </div>
   </div>
 </article>
+
+  
+<nav id="article-nav">
+  
+    <a href="/2020/12/22/HBase写流程/" id="article-nav-newer" class="article-nav-link-wrap">
+      <i class="icon-circle-left"></i>
+      <div class="article-nav-title">
+        
+          HBase写流程
+        
+      </div>
+    </a>
   
   
-    </div></section>
+    <a href="/2020/04/19/NIO网络编程原理/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">NIO网络编程原理</div>
+      <i class="icon-circle-right"></i>
+    </a>
+  
+</nav>
+
+
+<aside class="wrap-side-operation">
+    <div class="mod-side-operation">
+        
+        <div class="jump-container" id="js-jump-container" style="display:none;">
+            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
+                <i class="icon-font icon-back"></i>
+            </a>
+            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
+                <i class="icon-font icon-plane jump-plane"></i>
+            </div>
+        </div>
+        
+        
+        <div class="toc-container tooltip-left">
+            <i class="icon-font icon-category"></i>
+            <div class="tooltip tooltip-east">
+                <span class="tooltip-item">
+                </span>
+                <span class="tooltip-content">
+                    <div class="toc-article">
+                    <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#概述"><span class="toc-number">1.</span> <span class="toc-text">概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#通信模型"><span class="toc-number">2.</span> <span class="toc-text">通信模型</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#服务端"><span class="toc-number">2.1.</span> <span class="toc-text">服务端</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#参数说明"><span class="toc-number">3.</span> <span class="toc-text">参数说明</span></a></li></ol>
+                    </div>
+                </span>
+            </div>
+        </div>
+        
+    </div>
+</aside>
+
+
+
+  
+  
   
 
-    
+  
+
+  
+
+  
 
 
           </div>
@@ -221,8 +408,8 @@
 	var yiliaConfig = {
 		mathjax: false,
 		isHome: false,
-		isPost: false,
-		isArchive: true,
+		isPost: true,
+		isArchive: false,
 		isTag: false,
 		isCategory: false,
 		open_in_new: false,

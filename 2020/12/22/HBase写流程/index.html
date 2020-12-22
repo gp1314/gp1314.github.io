@@ -6,15 +6,25 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>Archives: 2019/6 | Hexo</title>
+  <title>HBase写流程 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http://yoursite.com/archives/2019/06/index.html">
+  <meta name="description" content="HBase写流程">
+<meta name="keywords" content="HBase">
+<meta property="og:type" content="article">
+<meta property="og:title" content="HBase写流程">
+<meta property="og:url" content="http://yoursite.com/2020/12/22/HBase写流程/index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="HBase写流程">
 <meta property="og:locale" content="default">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B01.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B02.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B03.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B04.png">
+<meta property="og:updated_time" content="2020-12-22T06:11:50.678Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Hexo">
+<meta name="twitter:title" content="HBase写流程">
+<meta name="twitter:description" content="HBase写流程">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B01.png">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -138,36 +148,135 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            
-  
-  
+            <article id="post-HBase写流程" class="article article-type-post " itemscope itemprop="blogPost">
+  <div class="article-inner">
     
-    
-      
-      
-      <section class="archives-wrap">
-        <div class="archive-year-wrap">
-          <a href="/archives/2019" class="archive-year">2019</a>
-        </div>
-        <div class="archives">
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/06/29/HBase-Token过期问题/" class="archive-article-date">
-  	<time datetime="2019-06-29T11:16:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-06-29</time>
-</a>
-        </div>
-    	 
+      <header class="article-header">
+        
   
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/06/29/HBase-Token过期问题/">HBase Token过期问题</a>
+    <h1 class="article-title" itemprop="name">
+      HBase写流程
     </h1>
   
 
-        <div class="article-info info-on-right">
-          
+	<!--显示阅读次数-->
+	
+  	<br/>
+  	<a class="cloud-tie-join-count" href="javascript:void(0);" style="color:gray;font-size:14px;">
+  	<span class="icon-sort"></span>
+  	<span id="busuanzi_container_page_pv" style="color:#ef7522;font-size:14px;">
+            阅读数: <span id="busuanzi_value_page_pv"></span>次 &nbsp;&nbsp;
+ 	 </span>
+  	</a>
+  	
+        
+        <a href="/2020/12/22/HBase写流程/" class="archive-article-date">
+  	<time datetime="2020-12-22T05:12:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2020-12-22</time>
+</a>
+        
+      </header>
+    
+    <div align="center" class="post-count">
+    	字数：1.5k字 | 预计阅读时长：5分钟
+    </div>
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p><strong>HBase写流程</strong></p>
+<a id="more"></a>
+
+<h2 id="写入"><a href="#写入" class="headerlink" title="写入"></a>写入</h2><ul>
+<li>HBase是一个基于LSM树的存储引擎，他将一次磁盘随机写转换成了一个磁盘顺序写 + 一次内存写</li>
+<li>HBase适合写多读少的场景，写入单节点，单2k的数据能达到6w ~ 7w+ OPS（某些大厂轻松上10W+ OPS）</li>
+<li>既然HBase在写性能上有较多优化设计，势必造成读上面有较多妥协，如读取需要进行多个HFile扫描以及一些版本上的filter等逻辑</li>
+</ul>
+<h2 id="并发控制"><a href="#并发控制" class="headerlink" title="并发控制"></a>并发控制</h2><ul>
+<li><p>写写并发控制</p>
+<ul>
+<li><p>rowkey在server端的构成：key + 列族 + 列  + 时间戳 + keyType</p>
+</li>
+<li><p>由于hbase是多个列族操作，写入多个列族时，如果不控制同一行的多个列族写入为原子操作，可能导致同一行多个列族乱序写入，例如：</p>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B01.png" alt></p>
+</li>
+</ul>
+</li>
+<li><p>写写并发控制可以通过对行进行加锁解决，对row01进行加锁，更新cf01和cf02后再释放锁以此达到写写一致的目的</p>
+</li>
+<li><p>读写并发控制</p>
+<ul>
+<li>也是由于HBase写入Memstore不是原子操作，对一个rowkey的写，存在多个步骤，所以读取时可能导致读到写到一半的数据</li>
+<li>在time1和time2 之间读取的结果是不一致的<br><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B02.png" alt="请在这里输入图片描述"></li>
+</ul>
+</li>
+<li><p>读写并发控制也可以通过锁来实现，例如读写锁，但是读写锁适用场景为读多写少的场景。对于大量的写操作，导致读操作对行锁的争用会导致写入性能下降</p>
+</li>
+<li><p>数据库一般采用mvcc的机制来实现读写并发控制</p>
+</li>
+</ul>
+<h3 id="HBase-MVCC"><a href="#HBase-MVCC" class="headerlink" title="HBase MVCC"></a>HBase MVCC</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><ul>
+<li>HBase目前单行数据更新需要加锁，保证数据的一致性(加锁的目的还有待确认，因为每个数据都是有时间戳作为版本号的，不加锁，只要入库时间不一致，最终查询也不会出现不一致问题)</li>
+<li>由于直接加锁会导致性能打折扣需要引入基于多版本的并发控制技术，就是MVCC，MVCC是数据库系统常用的保证数据一致性技术</li>
+<li>对于读写并发控制，为了避免写WAL持有行锁，引入了MVCC机制</li>
+</ul>
+<h4 id="MVCC实现"><a href="#MVCC实现" class="headerlink" title="MVCC实现"></a>MVCC实现</h4><ul>
+<li>Regionserver的HLog维护着一个write的mvccNum的队列</li>
+<li>在解行锁之前获取一个始终递增的mvccNum版本号，并放入write队列</li>
+<li>解锁后同步WAL到HDFS</li>
+<li>如果写WAL成功，则将write队列mvccNum取出，推进readpoint这样，用户就可以读到Memstore中插入的数据了</li>
+<li>如果写WAL失败，则将写Memstore的数据回滚，还是将write队列mvccNum取出，并将readpoint向前推进</li>
+<li>MVCC机制只是避免写WAL持有锁，实际类似两段提交，先锚定一个mvccNum号，成功后将readpoint推进</li>
+<li>如下图，写入时，60，59标黄的已经落盘，58，57还未落盘，readpoint一定会等到mvccNum为57成功落盘后，才会移动到57</li>
+<li>客户端读取时，只能读取到readpoint指定或更小的版本号</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B03.png" alt="请在这里输入图片描述"></p>
+<h2 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h2><h3 id="客户端流程"><a href="#客户端流程" class="headerlink" title="客户端流程"></a>客户端流程</h3><ul>
+<li>客户端流程逻辑较为清晰，暂时未完全整理，基本流程如下</li>
+<li>第一次写入会首先访问zk的meta znode将存放meta表的regionserver地址缓存到本地</li>
+<li>访问meta表的regionserver地址，将查询rowkey的记录，rowkey的记录中包含region信息，region存在的regionserver地址</li>
+<li>将rowkey写入本地缓存</li>
+<li>简单的每次put都提交，就是将本地缓存的数据按照region分组，将每组的数据写入到对应的regionserver</li>
+</ul>
+<h3 id="服务端流程"><a href="#服务端流程" class="headerlink" title="服务端流程"></a>服务端流程</h3><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B04.png" alt="请在这里输入图片描述"></p>
+<ul>
+<li><p>HBase写入在Regionserver主要有一下几个步骤</p>
+<ul>
+<li>获取rowkey的行锁</li>
+<li>获取region读锁</li>
+<li>写数据到hdfs</li>
+<li>写数据到Memstore</li>
+<li>解行锁</li>
+<li>刷新写数据WAL到HDFS</li>
+<li>成功后推进readpoint</li>
+<li>返回成功</li>
+</ul>
+</li>
+<li><p>在锁以内的操作，如写memstore以及获取mvcc number都是很快能完成的操作</p>
+</li>
+<li><p>其中写hdfs数据是在行锁之内的，但是这个是个异步操作，能很快返回成功</p>
+</li>
+<li><p>但是HBase必须要保证数据写WAL成功，才能告知客户端写入成功，但是写WAL是长耗时的IO操作，在进行IO时持有锁是一个绝对需要避免的操作，类似HDFS的edits并发落盘，需要在IO操作前后加锁以保证一致性</p>
+</li>
+<li><p>一二步，服务端在的多个writehandler同时向一个disruptor的无锁队列中写入数据，数据包括两种格式，其中一种walentry为真实的wal数据，另一种为syncfuture的sync同步请求。这两种都是异步的，写入队列就返回，writehandler在写入syncfuture后阻塞等待syncfuture返回的结果。所以在判断一条数据是否写入成功的标准是sync是否成功。</p>
+</li>
+<li><p>三四步，evenhandler 一个单线程handler消费disruptor 的写入请求，如果是walentry则append到hdfs的hlog文件，如果是syncfuture则将其提交到另一个阻塞队列中处理。这里append如果失败，表示写入wal失败，DamagedWALException异常会导致regionserver挂死</p>
+</li>
+<li><p>第五步，写入到阻塞队列中的syncfuture会经过一次累积，达到指定数量交由runner线程池进行处理，runner线程池则调用sync请求同步sync到hdfs</p>
+</li>
+<li><p>这里对hlog分append顺序写和sync同步两部操作确保数据“落盘” 原因是append操作写入hdfs只是写入到datanode内存的缓存中，需要调用sync才能刷写到操作系统缓存</p>
+</li>
+<li><p>第七步，runner线程通知sync结果给writehandler线程，整个wal数据落盘过程结束</p>
+</li>
+<li><p>从图中可以看到wal的操作采用用了很多两次异步解耦，采用该机制原因就是在append到hdfs时需要拥有一个updateLock的hdfs的文件锁，不解耦导致多个写线程抢占该锁导致性能下降；第二个同理，在sync hdfs的时候需要sync的锁，从而通过队列进行解耦，其中sync请求还进行了累积一定sync请求后批量同步，避免锁的争用</p>
+</li>
+<li><p>在成功sync同步到hdfs后，表示数据写入成功，推进readpoint，对应的写数据才能被查看到</p>
+</li>
+</ul>
+
+      
+      
+    </div>
+    <div class="article-info article-info-index">
+      
+      
 	<div class="article-tag tagcloud">
 		<i class="icon-price-tags icon"></i>
 		<ul class="article-tag-list">
@@ -179,19 +288,120 @@
 		</ul>
 	</div>
 
-          
+      
 
+      
+
+      
+        
+<div class="share-btn share-icons tooltip-left">
+  <div class="tooltip tooltip-east">
+    <span class="tooltip-item">
+      <a href="javascript:;" class="share-sns share-outer">
+        <i class="icon icon-share"></i>
+      </a>
+    </span>
+    <span class="tooltip-content">
+      <div class="share-wrap">
+        <div class="share-icons">
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="icon icon-weibo"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="icon icon-weixin"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="icon icon-qq"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="icon icon-douban"></i>
+          </a>
+          <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a>
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="icon icon-facebook"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="icon icon-twitter"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="icon icon-google"></i>
+          </a>
         </div>
-        <div class="clearfix"></div>
-    </header>
+      </div>
+    </span>
+  </div>
+</div>
+
+<div class="page-modal wx-share js-wx-box">
+    <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2020/12/22/HBase写流程/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div class="mask js-mask"></div>
+
+      
+      <div class="clearfix"></div>
+    </div>
   </div>
 </article>
+
+  
+<nav id="article-nav">
   
   
-    </div></section>
+    <a href="/2020/05/06/HBase RPC/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">HBase RPC模型</div>
+      <i class="icon-circle-right"></i>
+    </a>
+  
+</nav>
+
+
+<aside class="wrap-side-operation">
+    <div class="mod-side-operation">
+        
+        <div class="jump-container" id="js-jump-container" style="display:none;">
+            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
+                <i class="icon-font icon-back"></i>
+            </a>
+            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
+                <i class="icon-font icon-plane jump-plane"></i>
+            </div>
+        </div>
+        
+        
+        <div class="toc-container tooltip-left">
+            <i class="icon-font icon-category"></i>
+            <div class="tooltip tooltip-east">
+                <span class="tooltip-item">
+                </span>
+                <span class="tooltip-content">
+                    <div class="toc-article">
+                    <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#写入"><span class="toc-number">1.</span> <span class="toc-text">写入</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#并发控制"><span class="toc-number">2.</span> <span class="toc-text">并发控制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#HBase-MVCC"><span class="toc-number">2.1.</span> <span class="toc-text">HBase MVCC</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#概述"><span class="toc-number">2.1.1.</span> <span class="toc-text">概述</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#MVCC实现"><span class="toc-number">2.1.2.</span> <span class="toc-text">MVCC实现</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#流程"><span class="toc-number">3.</span> <span class="toc-text">流程</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#客户端流程"><span class="toc-number">3.1.</span> <span class="toc-text">客户端流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#服务端流程"><span class="toc-number">3.2.</span> <span class="toc-text">服务端流程</span></a></li></ol></li></ol>
+                    </div>
+                </span>
+            </div>
+        </div>
+        
+    </div>
+</aside>
+
+
+
+  
+  
   
 
-    
+  
+
+  
+
+  
 
 
           </div>
@@ -221,8 +431,8 @@
 	var yiliaConfig = {
 		mathjax: false,
 		isHome: false,
-		isPost: false,
-		isArchive: true,
+		isPost: true,
+		isArchive: false,
 		isTag: false,
 		isCategory: false,
 		open_in_new: false,
