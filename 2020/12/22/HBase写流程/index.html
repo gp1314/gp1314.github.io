@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B02.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B03.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20201222/hbase%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B04.png">
-<meta property="og:updated_time" content="2020-12-22T06:11:50.678Z">
+<meta property="og:updated_time" content="2020-12-22T06:20:05.051Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="HBase写流程">
 <meta name="twitter:description" content="HBase写流程">
@@ -72,7 +72,7 @@
 		<nav>
     			总文章数 6
 		</nav>
-		总字数 <span class="post-count">11.2k</span>
+		总字数 <span class="post-count">11.3k</span>
 		<nav class="header-smart-menu">
     		
     			
@@ -177,7 +177,7 @@
       </header>
     
     <div align="center" class="post-count">
-    	字数：1.5k字 | 预计阅读时长：5分钟
+    	字数：1.6k字 | 预计阅读时长：5分钟
     </div>
     <div class="article-entry" itemprop="articleBody">
       
@@ -188,6 +188,7 @@
 <li>HBase是一个基于LSM树的存储引擎，他将一次磁盘随机写转换成了一个磁盘顺序写 + 一次内存写</li>
 <li>HBase适合写多读少的场景，写入单节点，单2k的数据能达到6w ~ 7w+ OPS（某些大厂轻松上10W+ OPS）</li>
 <li>既然HBase在写性能上有较多优化设计，势必造成读上面有较多妥协，如读取需要进行多个HFile扫描以及一些版本上的filter等逻辑</li>
+<li>在实现高性能并发写入，需要先解决并发写入数据的互斥问题，即写写顺序控制，读写顺序控制</li>
 </ul>
 <h2 id="并发控制"><a href="#并发控制" class="headerlink" title="并发控制"></a>并发控制</h2><ul>
 <li><p>写写并发控制</p>
