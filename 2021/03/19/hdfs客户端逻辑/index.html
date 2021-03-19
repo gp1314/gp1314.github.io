@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E4%BA%A4%E4%BA%92.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client-read%E5%9F%BA%E6%9C%AC%E6%B5%81%E7%A8%8B.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E7%9F%AD%E8%B7%AF%E8%AF%BB%E7%BB%93%E6%9E%84.png">
-<meta property="og:updated_time" content="2021-03-19T07:57:00.711Z">
+<meta property="og:updated_time" content="2021-03-19T08:33:45.396Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="HDFS客户端读逻辑">
 <meta name="twitter:description" content="HDFS客户端读逻辑">
@@ -290,7 +290,7 @@
 </li>
 <li><p>其实Java支持mmap 但是如果直接发送文件名，则需要client要有类似hadoop的管理员权限，这样client可以读管理员权限的所有问题，为了限制client权限，datanode需要只发送一个已经打开的文件描述符，用户只能读取该文件描述符的文件。这就需要domain socket实现，但是在jdk16之前，java 没有domain socket实现，所以需要用到JNI</p>
 </li>
-<li><p>关于client发送文件描述符到datanode以及mmap同步信息的demo我这边有个实现，可查看：</p>
+<li><p>关于client发送文件描述符到datanode以及mmap同步信息的demo我这边有个实现，可查看：<a href="https://github.com/gp1314/learning-web/tree/master/DomainSocketDemo" target="_blank" rel="noopener">https://github.com/gp1314/learning-web/tree/master/DomainSocketDemo</a></p>
 </li>
 </ul>
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
