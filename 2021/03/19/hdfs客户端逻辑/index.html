@@ -23,7 +23,7 @@
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-write-packet.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-write%E6%B5%81%E7%A8%8B.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client-failover.png">
-<meta property="og:updated_time" content="2021-03-22T13:25:49.807Z">
+<meta property="og:updated_time" content="2021-03-22T13:29:25.063Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="HDFS客户端读逻辑">
 <meta name="twitter:description" content="HDFS客户端读逻辑">
@@ -331,7 +331,7 @@
 </li>
 <li><p>然后还要向通过updatePipeline向namenode报告新建的pipeline的datanode情况用以更新namenode中block与datanode的关系</p>
 </li>
-<li><p>在生产环境遇到第四步在向datanode4 transfer数据失败了但是没有处理失败请求返回client还是成功导致整个failover失败regionserver挂死的情况，详情查看：<a href="https://gp1314.github.io/2019/10/09/HBase-RS%E5%86%99HDFS%E5%A4%B1%E8%B4%A5%E6%8C%82%E6%AD%BB%E9%97%AE%E9%A2%98/" target="_blank" rel="noopener">“HBase RS写HDFS失败挂死问题”</a></p>
+<li><p>在生产环境遇到第四步在向datanode4 transfer数据失败了但是datanode1没有处理失败,返回到client还是成功，client向新的pipline写数据时有失败，重新触发failover多次导致整个failover失败regionserver挂死的情况，详情查看：<a href="https://gp1314.github.io/2019/10/09/HBase-RS%E5%86%99HDFS%E5%A4%B1%E8%B4%A5%E6%8C%82%E6%AD%BB%E9%97%AE%E9%A2%98/" target="_blank" rel="noopener">“HBase RS写HDFS失败挂死问题”</a></p>
 </li>
 </ul>
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
