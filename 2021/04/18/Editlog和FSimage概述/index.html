@@ -6,15 +6,27 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>Tag: HBase | Hexo</title>
+  <title>Editlog和FSimage概述 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http://yoursite.com/tags/HBase/index.html">
+  <meta name="description" content="Editlog和FSimage概述">
+<meta name="keywords" content="HDFS">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Editlog和FSimage概述">
+<meta property="og:url" content="http://yoursite.com/2021/04/18/Editlog和FSimage概述/index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Editlog和FSimage概述">
 <meta property="og:locale" content="default">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/editlog.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/namedata.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/doublebuffer.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/fsimage.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/checkpoint.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/namenode_ha.png">
+<meta property="og:updated_time" content="2021-04-18T13:10:08.310Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Hexo">
+<meta name="twitter:title" content="Editlog和FSimage概述">
+<meta name="twitter:description" content="Editlog和FSimage概述">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/editlog.png">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -138,222 +150,302 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            
-  
-  
+            <article id="post-Editlog和FSimage概述" class="article article-type-post " itemscope itemprop="blogPost">
+  <div class="article-inner">
     
-    
-      
-      
-      <section class="archives-wrap">
-        <div class="archive-year-wrap">
-          <a href="/archives/2020" class="archive-year">2020</a>
-        </div>
-        <div class="archives">
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2020/12/22/HBase写流程/" class="archive-article-date">
-  	<time datetime="2020-12-22T05:12:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2020-12-22</time>
-</a>
-        </div>
-    	 
+      <header class="article-header">
+        
   
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2020/12/22/HBase写流程/">HBase写流程</a>
+    <h1 class="article-title" itemprop="name">
+      Editlog和FSimage概述
     </h1>
   
 
-        <div class="article-info info-on-right">
-          
+	<!--显示阅读次数-->
+	
+  	<br/>
+  	<a class="cloud-tie-join-count" href="javascript:void(0);" style="color:gray;font-size:14px;">
+  	<span class="icon-sort"></span>
+  	<span id="busuanzi_container_page_pv" style="color:#ef7522;font-size:14px;">
+            阅读数: <span id="busuanzi_value_page_pv"></span>次 &nbsp;&nbsp;
+ 	 </span>
+  	</a>
+  	
+        
+        <a href="/2021/04/18/Editlog和FSimage概述/" class="archive-article-date">
+  	<time datetime="2021-04-18T12:47:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2021-04-18</time>
+</a>
+        
+      </header>
+    
+    <div align="center" class="post-count">
+    	字数：3k字 | 预计阅读时长：10分钟
+    </div>
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p><strong>Editlog和FSimage概述</strong></p>
+<a id="more"></a>
+
+<h1 id="Editlog和FSimage概述"><a href="#Editlog和FSimage概述" class="headerlink" title="Editlog和FSimage概述"></a>Editlog和FSimage概述</h1><ul>
+<li>fsimage 保存了hdfs文件的元数据信息，包括文件的目录结构，文件的权限，文件创建时间，文件所属的用户以及文件的对应的block信息，这些需要持久化保存到磁盘，否则namenode再次启动将丢失所有数据</li>
+<li>由于fsimage保存的元数据信息会很大，达到G级别，如果直接操作fsimage文件势必会造成fsimage文件大量随机读，性能无法保证，所以推出了editlog文件，这个文件，只保存一段时间的元数据修改操作，并且写入操作一直向editlog文件进行追加，如此避免随机io</li>
+<li>在一段时间后再将editlog文件和并到fsimage文件中，如此保证了元数据的写入性能又不至于丢失元数据。</li>
+<li>editlog和fsimage 都是hdfs存储hdfs 第一关系的载体，主要是记录hdfs的目录结构文件与block的对应关系，namenode要正常启动需要正确加载editlog和fsimage</li>
+</ul>
+<h2 id="editlog"><a href="#editlog" class="headerlink" title="editlog"></a>editlog</h2><ul>
+<li>editlog是namenode 操作修改目录结构以及增删block的操作日志，该日志必须实时同步到持久存储，否则namenode挂死会导致修改的操作丢失而重新回到之前未修改状态</li>
+<li>为了保证写入性能editlog文件一直是追加写入，并且文件只保存一段时间的操作记录，至于哪一段时间的数据则需要一个transation来进行量化</li>
+<li>transation机制就是在namenode发起一次元数据的修改，namenode就会发起一次transation，每次transation都会有一个全局唯一并且自增的transationid进行标识</li>
+<li>editlog一个操作的结构如下，op为该次操作的标识码，len为除了checksum的操作记录的长度，txid就是transationid，opfields就是该次操作的参数，包括inode，block，客户端id，rpc id等信息。</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/editlog.png" alt></p>
+<ul>
+<li>editlog在持久化存储中分为两种，一种是正在写的文件inprogress，一种是roll以后持久化inprogress文件后的阶段性文件<ul>
+<li>edits_startid-endid文件：inprogress执行roll以后持久化inprogress文件后的阶段性文件，该文件保存的是startid到endid的之间的所有操作</li>
+<li>edits_inprogress_startid文件：正在被写入editlog的文件，保存的是从startid开始到现在的操作</li>
+<li>fsimage_endid文件：保存的是几个edits文件和之前的fsimage文件合并后的文件，保存的是endid之前的所有操作</li>
+<li>seen_txid文件：记录的是上次roll edits文件或者checkpoint的trasationid，目的是为了在namenode检查加载的fsimage以及edits文件是否完整，例如只加载了fsimage文件，seen_txid有记录的是上次roll edit的transationid，则seen_txid比fsimage文件的transationid大，从而namenode会启动失败</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/namedata.png" alt></p>
+<ul>
+<li><p>editlog的记录流程涉及多个客户端的rpc线程写入，下面介绍editlog是如何实现多线程刷写的</p>
+<p>  <img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/doublebuffer.png" alt></p>
+<ul>
+<li>上图中每个虚线框表示一个同步块，每个线程从第一个同步块向下执行</li>
+<li>假如有线程A，进入第一个同步块，开始transation，首先获取txid，该txid就是transationid该id为全局自加，如txid=7，开始transation自加变为8，将8保存到线程的ThreadLocal变量中，这样不用实现多个线程间的同步，线程在同步块内将数据写入缓存中；</li>
+<li>如图editlog实现了一个双缓存机制EditsDoubleBuffer，先将FSEditLogOp 写入bufA，写完后，同样在同步块内检查bufA是否满了，没满直接返回，如果满了需要继续执行flush操作，同时将isAutoSyncScheduled设置为true不让其他线程向bufA写数据了，如线程C无法写入数据到缓存</li>
+<li>线程A执行到第二个同步块，比较现在的mytxid是否大于最近执行刷新的synctxid，如果小于synctxid则表示写入缓存的FSEditLogOp已经被其他线程刷到磁盘了，可以直接返回成功。如果大于synctxid则还需要判断isSyncRunning是否为真，如果为真，则表明有其他线程正在执行刷写操作，线程则释放锁等待</li>
+<li>如果其他线程刷写完了，isSyncRunning会变成false，线程A则将isSyncRunning设置为true表示自己要开始刷缓存数据到磁盘了，现在将缓存bufA替换为ready状态，将isAutoSyncScheduled设置为false，允许让其他线程向之前空的bufB写入数据</li>
+<li>线程A设继续执行下面没有同步的代码块，该代码块则执行的是将bufA中的数据刷写到磁盘，这个操作相对耗时，所以在没有同步代码块中进行，此时其他线程可以写入数据到bufB并且也可执行synclog，但是会阻塞在isSyncRunning的状态，如线程B</li>
+<li>线程A刷写完数据后最后进入同步代码块将synctxid 设置为8，同时将isSyncRunning设置为false允许其他线程刷写缓存</li>
+</ul>
+</li>
+</ul>
+<h2 id="fsimage"><a href="#fsimage" class="headerlink" title="fsimage"></a>fsimage</h2><ul>
+<li>fsimage文件是主要保存namenode第一关系的元数据文件，namenode的inode与block的对应关系，文件的snapshot特性，文件权限特性，目录缓存等等都需要靠fsimage来构造</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/fsimage.png" alt></p>
+<ul>
+<li><p>fsimage结构如上图所示：</p>
+<ul>
+<li>magic: 魔数，标识该文件是否以protobuf进行序列化</li>
+<li>sections: namenode将元数据划分为多种类型的section，根据不同类型统一保存，其中namesystemsection保存文件系统元信息，inodesection保存组成目录树的所有inode</li>
+<li>filesummary：filesummary保存了所有fsimage的元数据信息和所有section的索引，ondiskversion保存fsimage版本号，codec保存了压缩编码。sections则保存了所有section的索引与橙黄色的sections展开的意义对应</li>
+<li>filesummarylength：记录了fsimage文件的长度，在加载fsimage文件时，首先回去读取该字段，并且初始化filesummary</li>
+</ul>
+</li>
+<li><p>写入fsimage</p>
+<ul>
+<li>首先根据获取最新的txid lastAppliedTxId，创建fsimage文件</li>
+<li>通过FSImageSaver线程进行save操作</li>
+<li>文件头写入魔数magic</li>
+<li>构造filesummary对象，依次保存NameSystem，Inodes，Snapshots，SecretManager，CacheManager，StringTable，同时将section的name，length，offset记录到filesummary的sections字段</li>
+<li>写入filesummary对象，然后将filesummary对象的长度写入到文件末尾</li>
+</ul>
+</li>
+<li><p>加载读取</p>
+<ul>
+<li>首先，检查magic是否是“HDFSIMG1” 该标志着sections和filesummary都是protobuf进行序列化</li>
+<li>然后读取文件的最后一个int也就是filesummarylength的值</li>
+<li>然后读取filesummary，构造filesummary的对象，该对象中就有个section的列表，先对该列表进行排序，然后遍历列表解析section，通过name字段可以判断是什么类型的section然后通过offset和length读取sections段的值构造对应对象</li>
+<li>最后根据读取的section构造出了FSNamesystem</li>
+</ul>
+</li>
+<li><p>注意这里的inodesection的写入是顺序的，单个线程依次写入所有的inodesection，导致inode这个写入和加载都会耗时很长，可能达到小时级别。可以考虑在inodesection中再记录一个索引，并发加载inode</p>
+</li>
+</ul>
+<h2 id="editlog与fsimage转换"><a href="#editlog与fsimage转换" class="headerlink" title="editlog与fsimage转换"></a>editlog与fsimage转换</h2><ul>
+<li>首先需要明确两个概念，就是editlog的roll和checkpoint</li>
+<li>editlog roll是指一个editlog文件不能无限写下去需要进行拆分，否则进行checkpoint可能时editlog过大照成写入性能瓶颈。所以到一定大小就会进行roll，根据start trasationid - end transationid进行分段一个editlog文件</li>
+<li>checkpoint 是指在editlog文件也不能过多，namenode启动时读取较多文件导致时间过长问题，就需要定时将多个editlog文件合并到fsimage文件中</li>
+<li>editlog 转换为fsimage就是checkpoint，checkpoint是两个namenode配合的过程，我这里直接介绍HA模式下的checkpoint</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/checkpoint.png" alt></p>
+<ul>
+<li>standby namendoe 检查：<ul>
+<li>检查是否超过检查点时长</li>
+<li>检查距离上一次checkpoint发生的transation操作是否超过阈值</li>
+</ul>
+</li>
+<li>将standby namenode的命名空间保存到fsimage.ckpt_txid文件中，其中txid是最新的txid，将MD5校验和写入文件后将文件重命名为fsimage.txid</li>
+<li>standby namenode向 active namenode发送get请求，并包含了fsimage的transationid以及可以获取最新fsimage文件的端口地址</li>
+<li>active namenode下载fsimage，先将其命名为fsimage.ckpt_txid，创建并写入MD5校验和后将其重名为fsimage.txid</li>
+<li>在standby namenode发起一次savenamespace的时候会获取最新的txid，然后将保存最新txid之前的所有namenode第一关系，standby namenode只需要将namesystem元数据写入到fsimage中即可，不需要回放editlog中的操作，因为standby namenode内存中的状态就是合并后最新的状态</li>
+<li>standby namenode在保存fsimage文件后，回开启新的inprocess editlog 文件，但是不是应该先开启inprocess editlog文件再保存fsimage吗？</li>
+<li>保存fsimage后会将之前过期的editlog和fsimage删除</li>
+</ul>
+<h2 id="高可用HA实现"><a href="#高可用HA实现" class="headerlink" title="高可用HA实现"></a>高可用HA实现</h2><ul>
+<li><p>namenode可以通过用户执行failover命令切换active 到standby 节点也可能active节点异常自动切换到standby节点</p>
+</li>
+<li><p>但是如何切换才能保证正确和排他呢？正确指的是editlog文件在active最后一个transation写入后standby 能正确读取到并且没有数据丢失；排他是指active 和standby 只能有一个也就是standby可以对editlog进行修改，active 在切换的瞬间不能对editlog再进行修改</p>
+</li>
+<li><p>fencing：隔离，意思就是active 和standby 需要对editlog的修改进行隔离，不允许切换到standby后原active还能对editlog进行修改，其实就是个分布式锁问题</p>
+<ul>
+<li>fencing 机制是通过一个epoch number来实现的，对于namenode 和journal node存在一个全局唯一的epoch number</li>
+<li>在standby 转换为active前，需要向journal node集群生成一个epoch number （值为前一个epoch number加一）</li>
+<li>在journal node端进行更新editlog文件时都会检查namenode携带的epoch number是否是最新的，如果不是就无法进行修改</li>
+<li>这样一旦standby namenode更新了epoch number 原来的active namenode就无法跟新editlog了达到了隔离active namenode的目的</li>
+</ul>
+</li>
+<li><p>正确性：</p>
+<ul>
+<li>之前的active namenode 可能写的editlog可能只写了最新的数据到部分journal node就挂了，就需要recover editlog</li>
+<li>prepareRecovery：standby 在申请完新的epoch number后就会执行editlog文件的恢复操作，具体是先获取所有journal node上的editlog文件，并选取一个最新的最完整的editlog</li>
+<li>acceptRecovery：standby 将选择的最新的最完整的editlog文件所在的journal node的url 发送到所有journal node节点，其他不完整的journal node根据url下载最新的editlog文件，这样所有的journal node的editlog文件的状态都同步了</li>
+<li>finalizeLogSegment：所有journal node节点执行roll edit ，后面开启一个新的editlog文件进行记录更新操作</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/namenode_ha.png" alt></p>
+<ol>
+<li>active节点发生故障，写了部分数据到JournalNode节点，其中JournalNode01写的最新的txid 为8的数其他JournalNode都还没来得及写入</li>
+<li>zkfc检查到active异常，触发了failover机制，failover会将active装换为standby，standby转换为active</li>
+<li>standby节点recoverUnclosedStreams流程，第一步就是createNewUniqueEpoch申请一个新的epoch number，JournalNode返回自己的最新的epoch number standby 选择一个最大的1，再将其加一变为2作为最新的epoch number同步到所有的JournalNode，这个时候如果active尝试再更新editlog他携带的epoch number为1小于2就无法执行更新操作</li>
+<li>standby节点执行recoverUnclosedSegment ，prepareRecovery阶段获取JournalNode上的editlog状态，并且选取一个最新的editlog文件，如上图，选择了JournalNode01的文件，因为他的txid为最新</li>
+<li>acceptRecovery阶段，standby将JournalNode01的可以下载最新editlog文件的url发送到其他JournalNode节点，其他节点请求JournalNode01节点同步editlog文件，这样所有JournalNode的edit文件就是最新的了</li>
+<li>finalizeLogSegment阶段，standby节点将正在写的edit文件执行roll edit，后面standby 转为active过程中会打开一个新的editlog文件进行写入</li>
+</ol>
+<p>ps： 这里之前有一个疑问，active 写入editlog文件是采用DoubleBuffer，如果active挂了，缓存在buffer中的数据不就丢失了吗？</p>
+<p>##附录</p>
+<ul>
+<li>namenode的metrics通过nn01节点的50070/jmx查看</li>
+<li>journalnode的metrics通过节点的8480/jmx查看</li>
+<li>类似介绍：<a href="https://www.qedev.com/bigdata/152182.html" target="_blank" rel="noopener">https://www.qedev.com/bigdata/152182.html</a></li>
+</ul>
+
+      
+      
+    </div>
+    <div class="article-info article-info-index">
+      
+      
 	<div class="article-tag tagcloud">
 		<i class="icon-price-tags icon"></i>
 		<ul class="article-tag-list">
 			 
         		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">HBase</a>
+        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color5">HDFS</a>
         		</li>
       		
 		</ul>
 	</div>
 
-          
-
-        </div>
-        <div class="clearfix"></div>
-    </header>
-  </div>
-</article>
-  
-    
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2020/05/06/HBase RPC/" class="archive-article-date">
-  	<time datetime="2020-05-06T05:12:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2020-05-06</time>
-</a>
-        </div>
-    	 
-  
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2020/05/06/HBase RPC/">HBase RPC模型</a>
-    </h1>
-  
-
-        <div class="article-info info-on-right">
-          
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">HBase</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-          
-
-        </div>
-        <div class="clearfix"></div>
-    </header>
-  </div>
-</article>
-  
-    
-    
       
-        </div></section>
+
       
+
       
-      <section class="archives-wrap">
-        <div class="archive-year-wrap">
-          <a href="/archives/2019" class="archive-year">2019</a>
+        
+<div class="share-btn share-icons tooltip-left">
+  <div class="tooltip tooltip-east">
+    <span class="tooltip-item">
+      <a href="javascript:;" class="share-sns share-outer">
+        <i class="icon icon-share"></i>
+      </a>
+    </span>
+    <span class="tooltip-content">
+      <div class="share-wrap">
+        <div class="share-icons">
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="icon icon-weibo"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="icon icon-weixin"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="icon icon-qq"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="icon icon-douban"></i>
+          </a>
+          <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a>
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="icon icon-facebook"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="icon icon-twitter"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="icon icon-google"></i>
+          </a>
         </div>
-        <div class="archives">
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/10/09/HBase-RS写HDFS失败挂死问题/" class="archive-article-date">
-  	<time datetime="2019-10-09T13:06:13.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-10-09</time>
-</a>
-        </div>
-    	 
-  
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/10/09/HBase-RS写HDFS失败挂死问题/">HBase RS写HDFS失败挂死问题</a>
-    </h1>
-  
+      </div>
+    </span>
+  </div>
+</div>
 
-        <div class="article-info info-on-right">
-          
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">HBase</a>
-        		</li>
-      		
-		</ul>
-	</div>
+<div class="page-modal wx-share js-wx-box">
+    <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2021/04/18/Editlog和FSimage概述/" alt="微信分享二维码">
+    </div>
+</div>
 
-          
+<div class="mask js-mask"></div>
 
-        </div>
-        <div class="clearfix"></div>
-    </header>
+      
+      <div class="clearfix"></div>
+    </div>
   </div>
 </article>
+
   
-    
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/10/08/HBase-MOB功能调研/" class="archive-article-date">
-  	<time datetime="2019-10-08T11:58:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-10-08</time>
-</a>
+<nav id="article-nav">
+  
+  
+    <a href="/2021/03/19/hdfs客户端逻辑/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">HDFS客户端读逻辑</div>
+      <i class="icon-circle-right"></i>
+    </a>
+  
+</nav>
+
+
+<aside class="wrap-side-operation">
+    <div class="mod-side-operation">
+        
+        <div class="jump-container" id="js-jump-container" style="display:none;">
+            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
+                <i class="icon-font icon-back"></i>
+            </a>
+            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
+                <i class="icon-font icon-plane jump-plane"></i>
+            </div>
         </div>
-    	 
-  
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/10/08/HBase-MOB功能调研/">HBase MOB功能调研</a>
-    </h1>
-  
-
-        <div class="article-info info-on-right">
-          
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">HBase</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-          
-
+        
+        
+        <div class="toc-container tooltip-left">
+            <i class="icon-font icon-category"></i>
+            <div class="tooltip tooltip-east">
+                <span class="tooltip-item">
+                </span>
+                <span class="tooltip-content">
+                    <div class="toc-article">
+                    <ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Editlog和FSimage概述"><span class="toc-number">1.</span> <span class="toc-text">Editlog和FSimage概述</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#editlog"><span class="toc-number">1.1.</span> <span class="toc-text">editlog</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#fsimage"><span class="toc-number">1.2.</span> <span class="toc-text">fsimage</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#editlog与fsimage转换"><span class="toc-number">1.3.</span> <span class="toc-text">editlog与fsimage转换</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#高可用HA实现"><span class="toc-number">1.4.</span> <span class="toc-text">高可用HA实现</span></a></li></ol></li></ol>
+                    </div>
+                </span>
+            </div>
         </div>
-        <div class="clearfix"></div>
-    </header>
-  </div>
-</article>
+        
+    </div>
+</aside>
+
+
+
   
-    
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/06/29/HBase-Token过期问题/" class="archive-article-date">
-  	<time datetime="2019-06-29T11:16:25.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-06-29</time>
-</a>
-        </div>
-    	 
   
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/06/29/HBase-Token过期问题/">HBase Token过期问题</a>
-    </h1>
   
 
-        <div class="article-info info-on-right">
-          
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">HBase</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-          
-
-        </div>
-        <div class="clearfix"></div>
-    </header>
-  </div>
-</article>
-  
-  
-    </div></section>
   
 
-    
+  
+
+  
 
 
           </div>
@@ -383,9 +475,9 @@
 	var yiliaConfig = {
 		mathjax: false,
 		isHome: false,
-		isPost: false,
+		isPost: true,
 		isArchive: false,
-		isTag: true,
+		isTag: false,
 		isCategory: false,
 		open_in_new: false,
 		toc_hide_index: true,
