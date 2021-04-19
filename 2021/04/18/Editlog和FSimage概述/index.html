@@ -22,7 +22,7 @@
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/fsimage.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/checkpoint.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210418/namenode_ha.png">
-<meta property="og:updated_time" content="2021-04-18T13:23:09.136Z">
+<meta property="og:updated_time" content="2021-04-19T07:41:34.597Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Editlog和FSimage概述">
 <meta name="twitter:description" content="Editlog和FSimage概述">
@@ -74,7 +74,7 @@
 		<nav>
     			总文章数 8
 		</nav>
-		总字数 <span class="post-count">17.2k</span>
+		总字数 <span class="post-count">17.3k</span>
 		<nav class="header-smart-menu">
     		
     			
@@ -179,7 +179,7 @@
       </header>
     
     <div align="center" class="post-count">
-    	字数：3k字 | 预计阅读时长：10分钟
+    	字数：3.1k字 | 预计阅读时长：11分钟
     </div>
     <div class="article-entry" itemprop="articleBody">
       
@@ -307,7 +307,12 @@
 <li>acceptRecovery阶段，standby将JournalNode01的可以下载最新editlog文件的url发送到其他JournalNode节点，其他节点请求JournalNode01节点同步editlog文件，这样所有JournalNode的edit文件就是最新的了</li>
 <li>finalizeLogSegment阶段，standby节点将正在写的edit文件执行roll edit，后面standby 转为active过程中会打开一个新的editlog文件进行写入</li>
 </ol>
-<p>ps： 这里之前有一个疑问，active 写入editlog文件是采用DoubleBuffer，如果active挂了，缓存在buffer中的数据不就丢失了吗？</p>
+<p>ps： 这里之前有一个疑问，active 写入editlog文件是采用DoubleBuffer，如果active挂了，缓存在buffer中的数据不就丢失了吗？<br>其实，在FSNamesystem 做namenode第一关系变更的时候，在logEdit记录FSEditLogOp 后还会调用logSync同步，同步后才算成功，所以，实际上sync的操作是很频繁的，并不会在doublebuffer中缓存太多操作</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">例如storeAllocatedBlock函数</span><br><span class="line">......</span><br><span class="line">//记录到editlog中</span><br><span class="line">  persistNewBlock(src, pendingFile);</span><br><span class="line">  offset = pendingFile.computeFileSize();</span><br><span class="line">&#125; finally &#123;</span><br><span class="line">  writeUnlock();</span><br><span class="line">&#125;</span><br><span class="line">getEditLog().logSync();</span><br></pre></td></tr></table></figure>
+
+<p>通过arthas查看QuorumOutputStream.flushAndSync同步editlogop操作到JournalNode的sendEdits，发现每次发送2-3个txid</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">[arthas@22916]$ watch org.apache.hadoop.hdfs.qjournal.client.AsyncLoggerSet sendEdits &quot;&#123;params,returnObj&#125;&quot; -n 1 -x 2 -b</span><br><span class="line">method=org.apache.hadoop.hdfs.qjournal.client.AsyncLoggerSet.sendEdits location=AtEnter</span><br><span class="line">ts=2021-04-19 15:14:35; [cost=0.017086ms] result=@ArrayList[</span><br><span class="line">    @Object[][</span><br><span class="line">        @Long[5697301282],</span><br><span class="line">        @Long[5697306128],</span><br><span class="line">        @Integer[3],</span><br><span class="line">        @byte[][isEmpty=false;size=205],</span><br><span class="line">    ],</span><br><span class="line">    null,</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
 <h2 id="附录"><a href="#附录" class="headerlink" title="附录"></a>附录</h2><ul>
 <li>namenode的metrics通过nn01节点的50070/jmx查看</li>
 <li>journalnode的metrics通过节点的8480/jmx查看</li>
