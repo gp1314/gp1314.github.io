@@ -6,28 +6,24 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>HDFS客户端读逻辑 | Hexo</title>
+  <title>DataNode 简介 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta name="description" content="HDFS客户端读逻辑">
+  <meta name="description" content="DataNode 简介">
 <meta name="keywords" content="HDFS">
 <meta property="og:type" content="article">
-<meta property="og:title" content="HDFS客户端读逻辑">
-<meta property="og:url" content="http://yoursite.com/2021/03/19/hdfs客户端逻辑/index.html">
+<meta property="og:title" content="DataNode 简介">
+<meta property="og:url" content="http://yoursite.com/2021/04/25/DataNode简介/index.html">
 <meta property="og:site_name" content="Hexo">
-<meta property="og:description" content="HDFS客户端读逻辑">
+<meta property="og:description" content="DataNode 简介">
 <meta property="og:locale" content="default">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E7%B1%BB%E7%BB%93%E6%9E%84.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E4%BA%A4%E4%BA%92.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client-read%E5%9F%BA%E6%9C%AC%E6%B5%81%E7%A8%8B.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E7%9F%AD%E8%B7%AF%E8%AF%BB%E7%BB%93%E6%9E%84.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-write-packet.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-write%E6%B5%81%E7%A8%8B.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client-failover.png">
-<meta property="og:updated_time" content="2021-03-22T13:29:25.063Z">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_storage.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_read.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_write.png">
+<meta property="og:updated_time" content="2021-04-25T13:11:42.965Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="HDFS客户端读逻辑">
-<meta name="twitter:description" content="HDFS客户端读逻辑">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E7%B1%BB%E7%BB%93%E6%9E%84.png">
+<meta name="twitter:title" content="DataNode 简介">
+<meta name="twitter:description" content="DataNode 简介">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_storage.png">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -151,14 +147,14 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            <article id="post-hdfs客户端逻辑" class="article article-type-post " itemscope itemprop="blogPost">
+            <article id="post-DataNode简介" class="article article-type-post " itemscope itemprop="blogPost">
   <div class="article-inner">
     
       <header class="article-header">
         
   
     <h1 class="article-title" itemprop="name">
-      HDFS客户端读逻辑
+      DataNode 简介
     </h1>
   
 
@@ -173,171 +169,102 @@
   	</a>
   	
         
-        <a href="/2021/03/19/hdfs客户端逻辑/" class="archive-article-date">
-  	<time datetime="2021-03-19T07:33:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2021-03-19</time>
+        <a href="/2021/04/25/DataNode简介/" class="archive-article-date">
+  	<time datetime="2021-04-25T12:58:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2021-04-25</time>
 </a>
         
       </header>
     
     <div align="center" class="post-count">
-    	字数：2.9k字 | 预计阅读时长：11分钟
+    	字数：2.2k字 | 预计阅读时长：7分钟
     </div>
     <div class="article-entry" itemprop="articleBody">
       
-        <p><strong>HDFS客户端读逻辑</strong></p>
+        <p><strong>DataNode 简介</strong></p>
 <a id="more"></a>
 
-<h1 id="HDFS客户端逻辑"><a href="#HDFS客户端逻辑" class="headerlink" title="HDFS客户端逻辑"></a>HDFS客户端逻辑</h1><h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><ul>
-<li>hdfs客户端是hdfs文件系统的入口，分析客户端逻辑能有利于了解hbase如何与客户端交互，hdfs客户端逻辑还影响这hbase的性能</li>
-<li>hdfs 客户端短路读以及零拷贝的有利于优化hbase性能，写入链路的failover机制分析写入异常时的基本逻辑</li>
-</ul>
-<h2 id="读取"><a href="#读取" class="headerlink" title="读取"></a>读取</h2><ul>
-<li>客户端读取过程实际上主要由open操作，read操作close构成，open则构造初始化stream数据流，read 则执行响应的数据读取传输，close则关闭并清理相关的资源</li>
-</ul>
-<h3 id="open"><a href="#open" class="headerlink" title="open"></a>open</h3><ul>
-<li><p>DistributedFileSystem调用open一个文件，则在客户端准备构建一个inputstream，该inputstream需要与namenode和datanode进行比较的交互从而获取响应的信息</p>
+<h1 id="DataNode-简介"><a href="#DataNode-简介" class="headerlink" title="DataNode 简介"></a>DataNode 简介</h1><h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><ul>
+<li><p>DataNode 是HDFS存储数据，以及提供数据读写的服务</p>
 </li>
-<li><p>inputstream是实现为HdfsDataInputStream该类是客户端能进行读写操作的类，其中实际进行读写的是DFSInputStream，DFSInputStream又通过DFSClient进行具体的与namenode，datanode交互的工作。在DFSClient的open操作实际上就是构造一个DFSInputStream对象</p>
-<p>  <img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E7%B1%BB%E7%BB%93%E6%9E%84.png" alt></p>
+<li><p>DataNode 主要提供两种服务，一种是组织维护数据在操作系统的存储结构以及维护存储的目录结构，另一种是提供在操作系统的文件系统内读写数据的接口。</p>
 </li>
-<li><p>在构造DFSInputStream对象则需要明确读取文件路径保存数据的Block以及Block在哪几个Datanode上面。</p>
-</li>
-<li><p>所以需要通过DFSClient拿着文件的path路径信息访问namnode获取文件的Block信息，由于客户端事先不知道文件到底有多大，则默认获取文件的10个Block的信息，也就是640M，并将这些block信息缓存在客户端。如果640M没有达到文件的最大长度，后面读取的时候如果还会从namenode获取后面的block信息</p>
-</li>
-<li><p>为何没有数据传输的时候要访问datanode呢？因为在open的时候先要获取最后一个block的长度信息，在读取操作时，文件最后一个block可能还在构建中，namenode获取的长度信息不准确，需要通过访问最后一个block的namenode才能确定</p>
-<p>  <img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E4%BA%A4%E4%BA%92.png" alt></p>
-</li>
-<li><p>获取block信息和最后一个block长度的操作如果失败会进行重试，最多重试3次，每次间隔4s</p>
+<li><p>下面就从这两个方面简介DataNode</p>
 </li>
 </ul>
-<h3 id="read"><a href="#read" class="headerlink" title="read"></a>read</h3><ul>
-<li><p>对于DFSInputStream的read有几种接口，一种是给定buf数组指定offset和len的读取，一种是范围buf的读取，其中返回buf的读取可以执行零拷贝逻辑</p>
-</li>
-<li><p>读取3种方式，tcp远程读取模式，短路读模式，零拷贝短路读模式，都是通过BlockReaderFactory进行判断构建</p>
-<ul>
-<li>tpc 远程读取模式：RemoteBlockReader2</li>
-<li>短路读模式：BlockReaderLocal</li>
-<li>零拷贝短路读模式：BlockReaderLocal</li>
+<h2 id="数据存储"><a href="#数据存储" class="headerlink" title="数据存储"></a>数据存储</h2><ul>
+<li>Federation架构引入块池的概念，由于NameNode在HDFS是一个热点服务，所有读写都必须请求NameNode获取信息，并且元数据信息巨大，导致HDFS可扩展性出现瓶颈，所以引入多NameSpace概念拆分多个文件系统就是多套NameNode，NameNode互相独立的方案用以减轻NameNode的压力。但是仍然共享一套DataNode所以，在DataNode引入块池抽象一个NameSpace在具体操作系统中的存储。</li>
+<li>一套NameNode在DataNode对应一个块池，每个块池在DataNode的存储目录上都有一个BP开头的目录，并且块池互相不共享目录。HDFS的升级以及回滚都可以在块池粒度进行</li>
 </ul>
-</li>
-<li><p>读取的方法都是synchronized的，所以单个客户端读取文件是单线程的</p>
-</li>
-<li><p>读取流程基本分为下面几个操作</p>
-<p>  <img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client-read%E5%9F%BA%E6%9C%AC%E6%B5%81%E7%A8%8B.png" alt></p>
-</li>
+<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_storage.png" alt></p>
+<h3 id="FSDataSet"><a href="#FSDataSet" class="headerlink" title="FSDataSet"></a>FSDataSet</h3><ul>
+<li>抽象了DataNode管理数据块的所有操作，主要是通过FSDataSetImpl实现，具体都是通过其内部的DataStorage，FSVolumeList，FSDataSetCache等对象进行</li>
+<li>创建数据块副本，写入（RBW），追加（RBW），提交（FINALIZED），恢复（RUR，RWR），复制（TEMPORARY）等状态的管理，以及数据副本的recovery等操作</li>
+<li>管理缓存数据块副本的操作，具体交给FSDataSetCache管理</li>
+<li>整理汇报数据块信息交给BPOfferService</li>
 </ul>
-<ul>
-<li>read 较为复杂的是选择block 时与 datanode交互，以及读取过程中出现异常的各种重试流程</li>
+<h4 id="DataStorage"><a href="#DataStorage" class="headerlink" title="DataStorage"></a>DataStorage</h4><ul>
+<li>DataStorage主要负责管理DataNode上的磁盘存储的空间，以及存管理储空间的生命周期（升级，回滚，提交等操作）</li>
+<li>在Federation架构中，一个DataNode可以保持多个块池的数据块，BlockPoolSliceStorage则是管理单个块池的存储空间以及生命周期</li>
 </ul>
-<h3 id="close"><a href="#close" class="headerlink" title="close"></a>close</h3><ul>
-<li>close方法比较简单，就是释放申请的ByteBuffer资源，池化的还回池中，关闭blockReader的资源</li>
+<h4 id="FSVolumeList"><a href="#FSVolumeList" class="headerlink" title="FSVolumeList"></a>FSVolumeList</h4><ul>
+<li>管理DataNode上多个存储目录的数据块，主要是通过FSVolumeImpl来进行管理</li>
+<li>FSVolumeImpl 则管理了单个存储目录上的数据块，例如创建文件，删除文件，以及文件目录结构的组织等操作，实际操作主要还是通过BlockPoolSlice来管理</li>
+<li>BlockPoolSlice 则抽象了单个块池在单个存储目录上的数据块管理，例如创建文件，删除文件，以及文件目录结构的组织等操作，还关联了与ReplicaMap的增删操作</li>
 </ul>
-<h2 id="短路零拷贝读"><a href="#短路零拷贝读" class="headerlink" title="短路零拷贝读"></a>短路零拷贝读</h2><ul>
-<li><p>短路读是指hdfs的客户端和datanode在同一个节点上，客户端绕过datanode直接读取block在本地的对应文件的优化</p>
-</li>
-<li><p>整个短路读在client和datanode的交互结构基本如下图所示：</p>
-<p>  <img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client%E7%9F%AD%E8%B7%AF%E8%AF%BB%E7%BB%93%E6%9E%84.png" alt></p>
-</li>
-<li><p>通过上一节的读流程知道，客户端需要构建一个blockReader才能读取block的数据，短路读的reader为BlockReaderLocal</p>
-</li>
-<li><p>在构造BlockReaderLocal之前需要知道block对应的在该节点的哪个文件上，并将输入流准备好读取，对应的是ShortCircuitReplicaInfo对象可以读取block在本地文件的数据</p>
-</li>
-<li><p>思考一个简化流程是，客户端向datanode请求获取block对应的文件描述符，客户端通过文件描述符对本地文件进行读写。但是datanode才是管理block副本的进程，如果block被删除只有datanode知道，客户端不知道，为了维护block副本的状态信息，就需要同步block副本在client和datanode之间的状态，就是slot</p>
-</li>
-<li><p>slot是管理一个block的缓存文件的最小单位，他只是同步client和datanode 标志一个block是否可以用的状态。由于datanode内有大量block，client和datanode之前可能要维护大量slot，状态的同步用网络不合适，由于是同一个节点，所以通共享内存实现。client 和datanode 共享多个一个8192Byte大小的文件，一个文件存放128个slot，一个slot就是64个字节的大小。</p>
-</li>
-<li><p>client首先通过网络通信请求datanode需要申请一个共享内存文件用于存放slot，datanode就在本地的/dev/shm下申请一个8192Byte大小的文件，并将文件描述符通过domain socket发送给client，client和datanode通过mmap映射该文件，并初始化好slot，此时slot的信息在client和datanode是同步的。</p>
-</li>
-<li><p>client再次请求datanode要求datanode发送block对应的文件描述符到client，client收到文件描述符后就可以对该block的副本文件进行读取</p>
-</li>
-<li><p>上面关于slot和block的文件描述符都存放在ShortCircuitReplicaInfo中，客户端通过获取ShortCircuitReplicaInfo字符流进行读取</p>
-</li>
-<li><p>为了构造ShortCircuitReplicaInfo，需要通过ShortCircuitCache从缓存获取一个，cache将replicainfo对象保存中replicaInfoMap的map中，如果不存在就要构造一个（这里的ShortCircuitCache相对于client是一个static类，就存在多线程并发控制的问题）</p>
-</li>
-<li><p>构造一个ShortCircuitReplicaInfo 分为两步，首先client需要构造一个DfsClientShm的对象，这是一个集合可以管理一批block文件的slot，一个DfsClientShm管理的slot只有128个，可能datanode存储的数据量很大，所以有多个DfsClientShm管理。client对一个datanode又对应一个EndPointShmManager管理一个Datanode的所有DfsClientShm。DfsClientShmManager又管理者整个客户端的所有EndPointShmManager。然后，获取block对应的file的文件描述符，应为存在哪个文件需要通过datanode解析才知道，datanode直接将block对应的文件描述符发给client</p>
-</li>
-<li><p>读取过程中datanode删除某个block的副本，则会将slot标志为置为不可用，或者客户端检查到slot加载超时，client 和datanode都会就会释放对应的slot已经相关的文件资源</p>
-</li>
+<h4 id="ReplicaMap"><a href="#ReplicaMap" class="headerlink" title="ReplicaMap"></a>ReplicaMap</h4><ul>
+<li>存储了DataNode上所有副本在内存的抽象，主要是存储一个索引信息，通过bpid查询到对应的数据块副本ReplicaInfo</li>
+<li>ReplicaInfo 上则存储的是副本关联的文件以及meta文件，同时可以索引到数据块副本所在的块池以及所在的存储目录</li>
 </ul>
-<h2 id="附录"><a href="#附录" class="headerlink" title="附录"></a>附录</h2><h3 id="JNI-实现native方法"><a href="#JNI-实现native方法" class="headerlink" title="JNI 实现native方法"></a>JNI 实现native方法</h3><ul>
-<li><p>domain socket的使用需要依赖JNI通过C代码实现</p>
-</li>
-<li><p>JNI实现打开文件获取文件描述符步骤如下：</p>
-<ul>
-<li><p>创建Java 类，声明native方法文件</p>
-</li>
-<li><p>加载名为JniTest的C语言的so动态库，后面在编译生成</p>
-</li>
-<li><p>在main方法中调用getFileDescriptor的native方法返回一个FileDescriptor的文件</p>
-  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">public class JniTest &#123;</span><br><span class="line">    public native FileDescriptor getFileDescriptor(String path, int length);</span><br><span class="line">    static &#123;</span><br><span class="line">        try</span><br><span class="line">        &#123;</span><br><span class="line">            System.loadLibrary(&quot;JniTest&quot;);</span><br><span class="line">        &#125;catch (UnsatisfiedLinkError e)&#123;</span><br><span class="line">            System.err.println( &quot;Cannot load hello library:\n &quot; + e.toString() );</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    public static void main(String[] args) throws Exception&#123;</span><br><span class="line">        JniTest jniTest = new JniTest();</span><br><span class="line">        FileDescriptor fd = jniTest.getFileDescriptor(&quot;/home/hadoop/gup_jni_test&quot;,8192);</span><br><span class="line">        String testString = &quot;gup test for jni...&quot;;</span><br><span class="line">        System.out.println(&quot;&quot;);</span><br><span class="line">        try&#123;</span><br><span class="line">            outputStream.write(testString.getBytes(),0,testString.getBytes().length);</span><br><span class="line">        &#125;catch (IOException e)&#123;</span><br><span class="line">            System.err.println(&quot;Failed to write! &quot; + e.getMessage());</span><br><span class="line">        &#125;finally &#123;</span><br><span class="line">            outputStream.close();</span><br><span class="line">        &#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>下面就是如何构建一个有getFileDescriptor方法的C语言的so库</p>
-</li>
-<li><p>通过JniTest 的native 方法生成.h文件</p>
-  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">javah JniTest</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>通过.h文件中的声明的方法编写.c 文件</p>
- <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">	#include &quot;jni.h&quot;</span><br><span class="line">	#include &quot;gup_test_zerocopy_demo_JniTest.h&quot;</span><br><span class="line">	......</span><br><span class="line">JNIEXPORT jobject JNICALL Java_gup_test_zerocopy_demo_JniTest_getFileDescriptor</span><br><span class="line">  (JNIEnv *env, jobject obj, jstring jpath, jint jlength)&#123;</span><br><span class="line">      int fd = -1;</span><br><span class="line">      int res;</span><br><span class="line">      char buf[jlength];</span><br><span class="line">      char target[PATH_MAX];</span><br><span class="line">      const char *path = NULL;</span><br><span class="line">      jclass fd_class;</span><br><span class="line">      jfieldID fd_descriptor;</span><br><span class="line">      jmethodID fd_constructor;</span><br><span class="line">      jobject jret = NULL;</span><br><span class="line">      path = (*env)-&gt;GetStringUTFChars(env, jpath, NULL);</span><br><span class="line">      snprintf(target, PATH_MAX, &quot;%s&quot;,path);</span><br><span class="line"></span><br><span class="line">      fd = open(target, O_CREAT | O_EXCL | O_RDWR, 0700);</span><br><span class="line">      memset(buf, 0, sizeof(buf));</span><br><span class="line">      write(fd, buf, jlength);</span><br><span class="line">      lseek(fd, 0, SEEK_SET);</span><br><span class="line">      fd_class = (*env)-&gt;FindClass(env, &quot;java/io/FileDescriptor&quot;);</span><br><span class="line">      fd_class = (*env)-&gt;NewGlobalRef(env, fd_class);</span><br><span class="line">      fd_descriptor = (*env)-&gt;GetFieldID(env, fd_class, &quot;fd&quot;, &quot;I&quot;);</span><br><span class="line">      fd_constructor = (*env)-&gt;GetMethodID(env, fd_class, &quot;&lt;init&gt;&quot;, &quot;()V&quot;);</span><br><span class="line"></span><br><span class="line">      jret = (*env)-&gt;NewObject(env, fd_class, fd_constructor);</span><br><span class="line">      (*env)-&gt;SetIntField(env, jret, fd_descriptor, fd);</span><br><span class="line">      return jret;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>编译成.so 库</p>
-  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">gcc -I/home/hadoop/jdk8/include -I/home/hadoop/jdk8/include/linux/ -fPIC -c JniTest.c</span><br><span class="line">gcc -shared -Wl,-soname,libJniTest.so.1 -o libJniTest.so.1.0 JniTest.o</span><br><span class="line">mv libJniTest.so.1.0 libJniTest.so</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>将.so 所在的文件夹加入到动态库环境变量中</p>
-  <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">export LD_LIBRARY_PATH=/home/hadoop/cbg_test/jni_test/</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>调用java的class方法就可以实现Java调C的so动态库了</p>
-</li>
+<h4 id="FSDataSetCache"><a href="#FSDataSetCache" class="headerlink" title="FSDataSetCache"></a>FSDataSetCache</h4><ul>
+<li>管理缓存的数据块副本集合，一个数据块副本缓存具体的操作是通过MappableBlock进行抽象</li>
+<li>数据块是通过NIO的FileChannel.map操作将文件内容共享到内存中方便直接读写</li>
 </ul>
-</li>
-<li><p>要实现client发送文件描述符到datanode已经两个进程共享内存，需要C语言实现domain socket的方式发送文件描述符，以及mmap一个文件</p>
-</li>
-<li><p>其实Java支持mmap 但是如果直接发送文件名，则需要client要有类似hadoop的管理员权限，这样client可以读管理员权限的所有问题，为了限制client权限，datanode需要只发送一个已经打开的文件描述符，用户只能读取该文件描述符的文件。这就需要domain socket实现，但是在jdk16之前，java 没有domain socket实现，所以需要用到JNI</p>
-</li>
-<li><p>关于client发送文件描述符到datanode以及mmap同步信息的demo我这边有个实现，可查看：<a href="https://github.com/gp1314/learning-web/tree/master/DomainSocketDemo" target="_blank" rel="noopener">https://github.com/gp1314/learning-web/tree/master/DomainSocketDemo</a></p>
-</li>
+<h3 id="BlockPoolManager"><a href="#BlockPoolManager" class="headerlink" title="BlockPoolManager"></a>BlockPoolManager</h3><ul>
+<li>BlockPoolManager 主要管理在DataNode上的与块池的管理，主要是管理逻辑上的操作，例如汇报以及增删等</li>
+<li>BlockPoolManager 内部会通过一个BPOfferService来管理单个块池</li>
+<li>BPOfferService 内部则通过两个BPServiceActor与两个NameNode进行通信，主要是向NameNode发送心跳，增量数据块汇报，全量数据块汇报，缓存数据块汇报以及执行返回的NameNode指令等</li>
 </ul>
-<h2 id="写入"><a href="#写入" class="headerlink" title="写入"></a>写入</h2><ul>
-<li>数据写入是通过FSOutputSummer将数据划分为一个一个checksum chunk，然后交给DFSOutputStream通过writeChunk将数据写入发送队列发送到datanode上<h3 id="Packet"><a href="#Packet" class="headerlink" title="Packet"></a>Packet</h3></li>
+<h3 id="DataBlockScanner"><a href="#DataBlockScanner" class="headerlink" title="DataBlockScanner"></a>DataBlockScanner</h3><ul>
+<li>主要是周期性执行DataNode存储目录下的所有块池的数据块验证工作，将损坏的数据块报告给NameNode</li>
+<li>验证工作会执行很长时间，而且21天才会执行一次，就是对数据块读出来进行checksum校验，具体某个块池通过BlockPoolSliceScanner执行校验</li>
 </ul>
-<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-write-packet.png" alt></p>
-<ul>
-<li>数据包主要有三部分组成，包头 + checksum校验包 + data包组成</li>
-<li>一个packet默认最大长度为65535 每个checksum校验512byte的数据</li>
+<h3 id="DirectoryScanner"><a href="#DirectoryScanner" class="headerlink" title="DirectoryScanner"></a>DirectoryScanner</h3><ul>
+<li>DirectoryScanner是扫描磁盘上的数据块信息，检查是否和内存中FsDataSetImpl中保存的数据块信息一致。如果不一致需要跟新FsDataSetImpl的数据块信息</li>
+<li>数据块信息验证只验证FINALIZED状态的数据块</li>
 </ul>
-<h3 id="发送流程"><a href="#发送流程" class="headerlink" title="发送流程"></a>发送流程</h3><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-write%E6%B5%81%E7%A8%8B.png" alt></p>
-<ul>
-<li>首先通过writeChunk 将数据组成一个packet发送到dataQueue的队列中</li>
-<li>DataStreamer线程池消费dataQueue的packet，然后发送到已经组成的pipline中，在线程的run中回判断是否存在pipline，如果不存在，则构建一个pipline（向namenode申请block，拿到datanode信息后与datanode创建输出流，构建pipline），并且初始化ResponseProcessor线程</li>
-<li>DataStreamer发送packet后还会将packet放到ackQueue中，等待ResponseProcessor处理</li>
-<li>ResponseProcessor线程会等待pipline返回发送的每个数据包的ack，如果成功，就将对应的ack从ackQueue中移除，如果失败，则同步失败的标志</li>
-<li>DataStreamer 会检查失败的标志，将失败的packet从ackQueue中放回到dataQueue中重新发送</li>
+<h2 id="数据读写接口"><a href="#数据读写接口" class="headerlink" title="数据读写接口"></a>数据读写接口</h2><ul>
+<li>Client和DataNode之前的数据读写都是通过DataTransferProtocol来定义的，采用的是直接socket流式接口通信而不是RPC</li>
+<li>主要是涉及的操作包括数据块副本的读，写，复制，替换，以及短路读等接口</li>
+<li>客户端为一个Sender封装的是与DataNode通信时的操作参数的ProtoBuf序列化，并通过Peer与DataNode通信</li>
+<li>DataNode端则通过Receiver进行协议协议解析，子类DataXceiver进行与底层操作系统交互接收发送数据</li>
 </ul>
-<h3 id="failover"><a href="#failover" class="headerlink" title="failover"></a>failover</h3><ul>
-<li>failover不是租约恢复机制，只是客户端在写数据时写失败的重试机制</li>
-<li>恢复机制和append写情况相同，流程相同</li>
-</ul>
-<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210319/hdfs-client-failover.png" alt></p>
-<ul>
-<li><p>重试恢复pipeline需要区分出是否需要复制之前写入的数据，所以需要判断写入在什么时候出现了问题</p>
-<ul>
-<li>如果还处在pipeline创建状态PIPELINE_SETUP_CREATE，就是块的副本还没开始写数据就不需要复制，如果是append状态还是需要transfer数据</li>
-<li>在关闭时异常PIPELINE_CLOSE，则也不需要复制数据</li>
-<li>已经开始传输数据了出现异常，需要将已经写入的数据transfer 给新加入的datanode</li>
-<li>此时需要向namenode申请一个新的datanode，通过getAdditionalDatanode向namenode发起请求</li>
-<li>拿到新加入的datanode后需要将pipeline上还正常的datanode已经写入的数据transfer到新节点，客户端的选择源节点的策略是从datanode数组中的第一个开始，如果失败就选择下一个，这样一直重试3次</li>
-</ul>
-</li>
-<li><p>在向新加入的节点transfer数据后，需要向namenode获取block新的时间戳同时也会拿到新的token，这样之前异常节点起来后，异常的副本时间戳较小会被namenode删除</p>
-</li>
-<li><p>然后还要向通过updatePipeline向namenode报告新建的pipeline的datanode情况用以更新namenode中block与datanode的关系</p>
-</li>
-<li><p>在生产环境遇到第四步在向datanode4 transfer数据失败了但是datanode1没有处理失败,返回到client还是成功，client向新的pipline写数据时有失败，重新触发failover多次导致整个failover失败regionserver挂死的情况，详情查看：<a href="https://gp1314.github.io/2019/10/09/HBase-RS%E5%86%99HDFS%E5%A4%B1%E8%B4%A5%E6%8C%82%E6%AD%BB%E9%97%AE%E9%A2%98/" target="_blank" rel="noopener">“HBase RS写HDFS失败挂死问题”</a></p>
-</li>
-</ul>
-<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
-<li><a href="https://webcache.googleusercontent.com/search?q=cache:SpsyhttoM1IJ:https://developer.ibm.com/zh/articles/l-linux-jni/+&amp;cd=1&amp;hl=zh-CN&amp;ct=clnk&amp;gl=us" target="_blank" rel="noopener">https://webcache.googleusercontent.com/search?q=cache:SpsyhttoM1IJ:https://developer.ibm.com/zh/articles/l-linux-jni/+&amp;cd=1&amp;hl=zh-CN&amp;ct=clnk&amp;gl=us</a></li>
-<li><a href="https://juejin.cn/post/6844903859807059981" target="_blank" rel="noopener">https://juejin.cn/post/6844903859807059981</a></li>
-<li><a href="https://hualet.org/blog/2018/10/28/%E9%80%9A%E8%BF%87-unix-domain-socket-%E4%BC%A0%E9%80%92%E6%96%87%E4%BB%B6%E6%8F%8F%E8%BF%B0%E7%AC%A6/" target="_blank" rel="noopener">https://hualet.org/blog/2018/10/28/%E9%80%9A%E8%BF%87-unix-domain-socket-%E4%BC%A0%E9%80%92%E6%96%87%E4%BB%B6%E6%8F%8F%E8%BF%B0%E7%AC%A6/</a></li>
+<h3 id="读数据"><a href="#读数据" class="headerlink" title="读数据"></a>读数据</h3><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_read.png" alt></p>
+<ol>
+<li>客户端的Sender发起socket请求到DataNode，成功连接后将读写流保存到Peer中</li>
+<li>DataNode端通过DataXceiverServer接受客户端发起的socket连接，并在构造一个DataXceiver线程放到线程池中处理请求，并将Peer保存到DataXceiver</li>
+<li>客户端Sender发起readblock请求码到DataXceiver</li>
+<li>DataXceiver 则通过父类的Receiver的方法反序列化ProtoBuf的请求</li>
+<li>DataXceiver 构造一个BlockSender处理缓存策略以及获取block的文件和meta文件，定位要读取的offset。然后送请求成功的消息给Sender，并携带checksum信息到Sender，同步checksum的类型和多少数据做checksum验证</li>
+<li>DataXceiver 发起managerOsCache的请求将要读取的数据缓存到操作系统内存（默认缓存4M），同时换出要无用的缓存数据，缓存数据的操作有一个Readahead线程池进行异步操作</li>
+<li>BlockSender 将数据打包成一个个Packet发送到客户端，Packet中包含了checksum验证结果以及data数据，发送完数据最后发送一个空包表示结束</li>
+<li>如果是零拷贝传输的话，DataNode不会读取到data数据到用户内存，所以BlockSender只是将checksum的数据发送给客户端，验证是在客户端进行的，客户端最后要将验证结果再发送给DataXceiver</li>
+</ol>
+<h3 id="写数据"><a href="#写数据" class="headerlink" title="写数据"></a>写数据</h3><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_write.png" alt></p>
+<ol>
+<li>客户端的Sender发起socket请求到DataNode，成功连接后将读写流保存到Peer中</li>
+<li>DataNode端通过DataXceiverServer接受客户端发起的socket连接，并在构造一个DataXceiver线程放到线程池中处理请求，并将Peer保存到DataXceiver</li>
+<li>客户端Sender发起readblock请求码到DataXceiver</li>
+<li>DataXceiver 则通过父类的Receiver的方法反序列化ProtoBuf的请求,构造BlockReceiver在指定的块池管理的目录下面创建新的rbw文件以及存储checksum的meta文件。DataXceiver转发请求到下游数据节点，下游数据节点做同样的解析，然后递归的返回成功给上游节点，如果中间有节点异常则会记录错误节点到返回信息中返回给客户端</li>
+<li>BlockReceiver 启动PacketResponder阻塞读取下游的mirrorIn字节流，下游客户端收到成功信息后会将数据打包成packet发送给下游节点，DataNode01从in输入字节流中读取packet后复制该packet的sqno等meta信息放入PacketResponder处理的阻塞队里中等待下游发送ack进行处理</li>
+<li>DataNode01的BlockReceiver然后将数据写入mirrorOut转发到下游</li>
+<li>BlockReceiver再将数据写入并执行flush，注意这里的flush调用后只会把write的数据从用户空间写入内核空间，如果没有设置sync则会调用一个异步任务去刷写内核空间数据到磁盘，如果有设置sync则会调用sync将数据从内核空间写入磁盘。如果写入的offset不是在checksum块的边界还要重新进行checksum，如果在边界上则直接使用packet发送过来的checksum结果</li>
+<li>在DataNode01发送数据到DataNode02，在DataNode02上也执行和DataNode01相同的流程，在写到最后一个节点DataNode03时，DataNode03会先执行checksum校验数据正确，然后将数据写入到磁盘并flush，没有设置sync的话同样启动一个异步任务刷写内核空间数据到磁盘</li>
+<li>DataNode03然后将数据的sqno信息放到PacketResponder的阻塞队列交给PacketResponder去发送ack消息到上游</li>
+<li>DataNode03 成功写入后会通过PacketResponder判断是否是block的最后一个packet，如果是就提交该block给namenode。然后将写入是否成功的ack发送给上游节点</li>
+<li>DataNode02读取处理ack的流程和DataNode01一样这里直接介绍DataNode01，上游节点的DataNode01读取mirrorIn的ack后读取阻塞队里的第一个packet比较两者的seqno是否相等,不相等抛出异常，检查是否是block的最后一个包（最后一个为空包）如果是则通知namenode更新block所在的datanode节点。将下游的ack和该节点的是否写入成功的状态合并打包并发送到上游客户端</li>
+</ol>
+<h2 id="附录"><a href="#附录" class="headerlink" title="附录"></a>附录</h2><ul>
+<li><a href="https://wenchao.ren/posts/%E7%A1%AE%E4%BF%9D%E6%95%B0%E6%8D%AE%E8%90%BD%E7%9B%98/" target="_blank" rel="noopener">写缓存区落盘相关</a></li>
 </ul>
 
       
@@ -407,7 +334,7 @@
     <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
     <p>扫一扫，分享到微信</p>
     <div class="wx-qrcode">
-      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2021/03/19/hdfs客户端逻辑/" alt="微信分享二维码">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2021/04/25/DataNode简介/" alt="微信分享二维码">
     </div>
 </div>
 
@@ -422,18 +349,9 @@
   
 <nav id="article-nav">
   
-    <a href="/2021/04/18/Editlog和FSimage概述/" id="article-nav-newer" class="article-nav-link-wrap">
-      <i class="icon-circle-left"></i>
-      <div class="article-nav-title">
-        
-          Editlog和FSimage概述
-        
-      </div>
-    </a>
   
-  
-    <a href="/2020/12/22/HBase写流程/" id="article-nav-older" class="article-nav-link-wrap">
-      <div class="article-nav-title">HBase写流程</div>
+    <a href="/2021/04/18/Editlog和FSimage概述/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">Editlog和FSimage概述</div>
       <i class="icon-circle-right"></i>
     </a>
   
@@ -460,7 +378,7 @@
                 </span>
                 <span class="tooltip-content">
                     <div class="toc-article">
-                    <ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#HDFS客户端逻辑"><span class="toc-number">1.</span> <span class="toc-text">HDFS客户端逻辑</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#背景"><span class="toc-number">1.1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#读取"><span class="toc-number">1.2.</span> <span class="toc-text">读取</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#open"><span class="toc-number">1.2.1.</span> <span class="toc-text">open</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#read"><span class="toc-number">1.2.2.</span> <span class="toc-text">read</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#close"><span class="toc-number">1.2.3.</span> <span class="toc-text">close</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#短路零拷贝读"><span class="toc-number">1.3.</span> <span class="toc-text">短路零拷贝读</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#附录"><span class="toc-number">1.4.</span> <span class="toc-text">附录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#JNI-实现native方法"><span class="toc-number">1.4.1.</span> <span class="toc-text">JNI 实现native方法</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#写入"><span class="toc-number">1.5.</span> <span class="toc-text">写入</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Packet"><span class="toc-number">1.5.1.</span> <span class="toc-text">Packet</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#发送流程"><span class="toc-number">1.5.2.</span> <span class="toc-text">发送流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#failover"><span class="toc-number">1.5.3.</span> <span class="toc-text">failover</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#参考"><span class="toc-number">1.6.</span> <span class="toc-text">参考</span></a></li></ol></li></ol>
+                    <ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#DataNode-简介"><span class="toc-number">1.</span> <span class="toc-text">DataNode 简介</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#背景"><span class="toc-number">1.1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#数据存储"><span class="toc-number">1.2.</span> <span class="toc-text">数据存储</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#FSDataSet"><span class="toc-number">1.2.1.</span> <span class="toc-text">FSDataSet</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#DataStorage"><span class="toc-number">1.2.1.1.</span> <span class="toc-text">DataStorage</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#FSVolumeList"><span class="toc-number">1.2.1.2.</span> <span class="toc-text">FSVolumeList</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#ReplicaMap"><span class="toc-number">1.2.1.3.</span> <span class="toc-text">ReplicaMap</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#FSDataSetCache"><span class="toc-number">1.2.1.4.</span> <span class="toc-text">FSDataSetCache</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#BlockPoolManager"><span class="toc-number">1.2.2.</span> <span class="toc-text">BlockPoolManager</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#DataBlockScanner"><span class="toc-number">1.2.3.</span> <span class="toc-text">DataBlockScanner</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#DirectoryScanner"><span class="toc-number">1.2.4.</span> <span class="toc-text">DirectoryScanner</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#数据读写接口"><span class="toc-number">1.3.</span> <span class="toc-text">数据读写接口</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#读数据"><span class="toc-number">1.3.1.</span> <span class="toc-text">读数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#写数据"><span class="toc-number">1.3.2.</span> <span class="toc-text">写数据</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#附录"><span class="toc-number">1.4.</span> <span class="toc-text">附录</span></a></li></ol></li></ol>
                     </div>
                 </span>
             </div>
