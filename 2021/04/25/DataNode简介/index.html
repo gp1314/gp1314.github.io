@@ -19,7 +19,7 @@
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_storage.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_read.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_write.png">
-<meta property="og:updated_time" content="2021-04-25T13:11:42.965Z">
+<meta property="og:updated_time" content="2021-04-25T13:30:18.112Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="DataNode 简介">
 <meta name="twitter:description" content="DataNode 简介">
@@ -69,9 +69,9 @@
 			</ul>
 		</nav>
 		<nav>
-    			总文章数 9
+    			总文章数 10
 		</nav>
-		总字数 <span class="post-count">19.5k</span>
+		总字数 <span class="post-count">21.1k</span>
 		<nav class="header-smart-menu">
     		
     			
@@ -184,12 +184,9 @@
 <a id="more"></a>
 
 <h1 id="DataNode-简介"><a href="#DataNode-简介" class="headerlink" title="DataNode 简介"></a>DataNode 简介</h1><h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><ul>
-<li><p>DataNode 是HDFS存储数据，以及提供数据读写的服务</p>
-</li>
-<li><p>DataNode 主要提供两种服务，一种是组织维护数据在操作系统的存储结构以及维护存储的目录结构，另一种是提供在操作系统的文件系统内读写数据的接口。</p>
-</li>
-<li><p>下面就从这两个方面简介DataNode</p>
-</li>
+<li>DataNode 是HDFS存储数据，以及提供数据读写的服务</li>
+<li>DataNode 主要提供两种服务，一种是组织维护数据在操作系统的存储结构以及维护存储的目录结构，另一种是提供在操作系统的文件系统内读写数据的接口。</li>
+<li>下面就从这两个方面简介DataNode</li>
 </ul>
 <h2 id="数据存储"><a href="#数据存储" class="headerlink" title="数据存储"></a>数据存储</h2><ul>
 <li>Federation架构引入块池的概念，由于NameNode在HDFS是一个热点服务，所有读写都必须请求NameNode获取信息，并且元数据信息巨大，导致HDFS可扩展性出现瓶颈，所以引入多NameSpace概念拆分多个文件系统就是多套NameNode，NameNode互相独立的方案用以减轻NameNode的压力。但是仍然共享一套DataNode所以，在DataNode引入块池抽象一个NameSpace在具体操作系统中的存储。</li>
@@ -348,6 +345,15 @@
 
   
 <nav id="article-nav">
+  
+    <a href="/2021/04/29/HDFS 租约机制/" id="article-nav-newer" class="article-nav-link-wrap">
+      <i class="icon-circle-left"></i>
+      <div class="article-nav-title">
+        
+          HDFS 租约机制
+        
+      </div>
+    </a>
   
   
     <a href="/2021/04/18/Editlog和FSimage概述/" id="article-nav-older" class="article-nav-link-wrap">
