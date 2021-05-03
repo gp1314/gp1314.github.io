@@ -6,24 +6,24 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://yoursite.com">
-  <title>DataNode 简介 | Hexo</title>
+  <title>HDFS RPC简介 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta name="description" content="DataNode 简介">
+  <meta name="description" content="HDFS RPC简介">
 <meta name="keywords" content="HDFS">
 <meta property="og:type" content="article">
-<meta property="og:title" content="DataNode 简介">
-<meta property="og:url" content="http://yoursite.com/2021/04/25/DataNode简介/index.html">
+<meta property="og:title" content="HDFS RPC简介">
+<meta property="og:url" content="http://yoursite.com/2021/05/03/HDFS RPC简介/index.html">
 <meta property="og:site_name" content="Hexo">
-<meta property="og:description" content="DataNode 简介">
+<meta property="og:description" content="HDFS RPC简介">
 <meta property="og:locale" content="default">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_storage.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_read.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_write.png">
-<meta property="og:updated_time" content="2021-04-25T13:30:18.112Z">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_protocol.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_client_server.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_packet.png">
+<meta property="og:updated_time" content="2021-05-03T13:28:45.007Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="DataNode 简介">
-<meta name="twitter:description" content="DataNode 简介">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_storage.png">
+<meta name="twitter:title" content="HDFS RPC简介">
+<meta name="twitter:description" content="HDFS RPC简介">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_protocol.png">
   
     <link rel="alternative" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -147,14 +147,14 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            <article id="post-DataNode简介" class="article article-type-post " itemscope itemprop="blogPost">
+            <article id="post-HDFS RPC简介" class="article article-type-post " itemscope itemprop="blogPost">
   <div class="article-inner">
     
       <header class="article-header">
         
   
     <h1 class="article-title" itemprop="name">
-      DataNode 简介
+      HDFS RPC简介
     </h1>
   
 
@@ -169,99 +169,72 @@
   	</a>
   	
         
-        <a href="/2021/04/25/DataNode简介/" class="archive-article-date">
-  	<time datetime="2021-04-25T12:58:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2021-04-25</time>
+        <a href="/2021/05/03/HDFS RPC简介/" class="archive-article-date">
+  	<time datetime="2021-05-03T13:24:35.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2021-05-03</time>
 </a>
         
       </header>
     
     <div align="center" class="post-count">
-    	字数：2.2k字 | 预计阅读时长：7分钟
+    	字数：1.4k字 | 预计阅读时长：5分钟
     </div>
     <div class="article-entry" itemprop="articleBody">
       
-        <p><strong>DataNode 简介</strong></p>
+        <p><strong>HDFS RPC简介</strong></p>
 <a id="more"></a>
 
-<h1 id="DataNode-简介"><a href="#DataNode-简介" class="headerlink" title="DataNode 简介"></a>DataNode 简介</h1><h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><ul>
-<li>DataNode 是HDFS存储数据，以及提供数据读写的服务</li>
-<li>DataNode 主要提供两种服务，一种是组织维护数据在操作系统的存储结构以及维护存储的目录结构，另一种是提供在操作系统的文件系统内读写数据的接口。</li>
-<li>下面就从这两个方面简介DataNode</li>
+<h1 id="HDFS-RPC简介"><a href="#HDFS-RPC简介" class="headerlink" title="HDFS RPC简介"></a>HDFS RPC简介</h1><h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><ul>
+<li>HDFS 是除了数据交互之外的内外部服务相互沟通的渠道，了解RPC的实现能能更清楚的了解组件之前的交互模式</li>
+<li>同时HDFS RPC也是一个通用的知识，不管哪个大数据组件基本都会涉及</li>
 </ul>
-<h2 id="数据存储"><a href="#数据存储" class="headerlink" title="数据存储"></a>数据存储</h2><ul>
-<li>Federation架构引入块池的概念，由于NameNode在HDFS是一个热点服务，所有读写都必须请求NameNode获取信息，并且元数据信息巨大，导致HDFS可扩展性出现瓶颈，所以引入多NameSpace概念拆分多个文件系统就是多套NameNode，NameNode互相独立的方案用以减轻NameNode的压力。但是仍然共享一套DataNode所以，在DataNode引入块池抽象一个NameSpace在具体操作系统中的存储。</li>
-<li>一套NameNode在DataNode对应一个块池，每个块池在DataNode的存储目录上都有一个BP开头的目录，并且块池互相不共享目录。HDFS的升级以及回滚都可以在块池粒度进行</li>
+<h2 id="接口"><a href="#接口" class="headerlink" title="接口"></a>接口</h2><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_protocol.png" alt></p>
+<ul>
+<li><p>hdfs的rpc实现的接口交互流程如上图</p>
+</li>
+<li><p>hdfs的client和namenode之间是通过ClientProtocol的接口进行远程过程调用（client与datanode为ClientDatanodeProtocol，namenode与datanode为DatanodeProtocol等）</p>
+</li>
+<li><p>由于在组件之间的传输需要通过socket进行传输就需要实现参数的序列化和反序列化，目前hdfs都是protobuf进行序列化，所以添加了一层ClientNameNameNodeProtocolPB适配器接口</p>
+</li>
+<li><p>客户端</p>
+<ul>
+<li>ClientNamenodeProtocolPB接口和ClientProtocol接口一一对应，不过ClientProtocol接口参数是抽象的，例如rename的参数src和dest都是String类型，而ClientNamenodeProtocolPB则参数为RenameRequestProto的序列化类型</li>
+<li>在ClientNamenodeProtocolTranslatorPB则是实现了ClientProtocol接口，客户端调用ClientNamenodeProtocolTranslatorPB的rename(src,dest)，ClientNamenodeProtocolTranslatorPB则将src和dest打包成RenameRequestProto然后调用ClientNamenodeProtocolPB的代理对象执行rename(ClientNamenodeProtocolPB)的函数</li>
+<li>对ClientNamenodeProtocolPB代理对象的rename函数调用则转化为调用内部的ProtobufRpcEngine.Invoker对象的invoke方法（java的动态代理机制），invoke方法首先构造描述RPC调用信息的对象RequestHeaderProto，用于记录客户端在什么协议上调用了什么方法（在ClientProtocol协议上调用rename方法），然后将RequestHeaderProto对象以及调用参数RenameRequestProto一起打包成一个RpcRequestWrapper对象</li>
+<li>然后invoker方法调用RPC.Client的call方法将请求通过socket发送到远程服务端，然后等待返回结果</li>
 </ul>
-<p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_storage.png" alt></p>
-<h3 id="FSDataSet"><a href="#FSDataSet" class="headerlink" title="FSDataSet"></a>FSDataSet</h3><ul>
-<li>抽象了DataNode管理数据块的所有操作，主要是通过FSDataSetImpl实现，具体都是通过其内部的DataStorage，FSVolumeList，FSDataSetCache等对象进行</li>
-<li>创建数据块副本，写入（RBW），追加（RBW），提交（FINALIZED），恢复（RUR，RWR），复制（TEMPORARY）等状态的管理，以及数据副本的recovery等操作</li>
-<li>管理缓存数据块副本的操作，具体交给FSDataSetCache管理</li>
-<li>整理汇报数据块信息交给BPOfferService</li>
+</li>
+<li><p>服务端</p>
+<ul>
+<li>服务端是通过RPC.Server对象监听socket请求，然后构造一个ProtoBufRpcInvoker解析到是一个ClientProtocol接口调用</li>
+<li>从而查询到实现了ClientProtocol接口的BlockingService对象，然后ProtoBufRpcInvoker将调用BlockingService的callBlockingMethod方法</li>
+<li>callBlockingMethod判断出是一个ClientNamenodeProtocolPB的rename调用，则会在持有的ClientNamenodeProtocolServerSideTranslatorPB对象上调用rename(RenameRequestProto)方法</li>
+<li>ClientNamenodeProtocolServerSideTranslatorPB对象是实现ClientNameNameNodeProtocolPB接口，该对象会将RenameRequestProto请求反序列化，然后调用NameNodeRpcServer.rename(src,dest)方法。</li>
+<li>NameNodeRpcServer对象则是实现了ClientProtocol接口，NameNodeRpcServer 则是真正执行rename操作的业务逻辑</li>
 </ul>
-<h4 id="DataStorage"><a href="#DataStorage" class="headerlink" title="DataStorage"></a>DataStorage</h4><ul>
-<li>DataStorage主要负责管理DataNode上的磁盘存储的空间，以及存管理储空间的生命周期（升级，回滚，提交等操作）</li>
-<li>在Federation架构中，一个DataNode可以保持多个块池的数据块，BlockPoolSliceStorage则是管理单个块池的存储空间以及生命周期</li>
+</li>
 </ul>
-<h4 id="FSVolumeList"><a href="#FSVolumeList" class="headerlink" title="FSVolumeList"></a>FSVolumeList</h4><ul>
-<li>管理DataNode上多个存储目录的数据块，主要是通过FSVolumeImpl来进行管理</li>
-<li>FSVolumeImpl 则管理了单个存储目录上的数据块，例如创建文件，删除文件，以及文件目录结构的组织等操作，实际操作主要还是通过BlockPoolSlice来管理</li>
-<li>BlockPoolSlice 则抽象了单个块池在单个存储目录上的数据块管理，例如创建文件，删除文件，以及文件目录结构的组织等操作，还关联了与ReplicaMap的增删操作</li>
+<h2 id="客户端-amp-服务端"><a href="#客户端-amp-服务端" class="headerlink" title="客户端 &amp; 服务端"></a>客户端 &amp; 服务端</h2><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_client_server.png" alt></p>
+<ul>
+<li>客户端将先从全局CLIENTS的缓存客户端中获取一个客户端，没有就构造一个client，client和DFSClient是一对多的关系。client保存了一个sendParamsExecutor线程池处理数据的发送</li>
+<li>ClientNamenodeProtocolPB代理对象的函数调用都是内部Invoker对象的invoke()转发,在调用rename函数的时候，就执行Invoker.invoke(),invoker()函数就调用client的call，在call发送数据之前，需要获取一个Connection对象，该对象封装了客户端和服务端通信的socket，该对象也在client中缓存，如果第一次获取，则通过setupIOstreams连接服务端，socket连接后还会writeConnectionHeader同步给服务端一些版本，认证信息</li>
+<li>服务端通过NameNodeRpcServer内的Listener对象接受客户端的socket连接，并从readers线程池中选择一个reader，并构造一个Connection对象放入reader的等待处理队列。这里的readers线程默认就一个线程</li>
+<li>reader的工作线程将在等待队列pendingConnections中的Connection取出并注册OP_READ事件等待客户端发起数据。其中pendingConnections默认初始化100个元素，是一个LinkedBlockingQueue队列理论上最大为Int.MAX</li>
+<li>回到客户端，客户端创建Connection后构造一个call对象，call对象是一个请求的抽象，包含了请求的参数，rpc类型，最重要的是有callid，这个callid是客户端可服务端索引一个请求的依据。通过Connection将call对象交给sendParamsExecutor线程池发送到服务端，并且call对象也会加到Connection对象的calls队列中等待服务端的返回结果</li>
+<li>服务端的reader接收到了客户端发来的数据，将解析出RpcRequestHeaderProto，该对象中保存了callid，retry次数，客户端id等信息。再将后面RpcRequest请求反序列化出来，构造call对象，然后将call对象放到callQueue队列中等待处理, callQueue默认为一个LinkedBlockingQueue最大长度为handler线程个数 * 100</li>
+<li>handler 线程池消费callQueue的call，通过rpckind找到ProtoBufRpcInvoker，调用该对象的call()将请求进一步反序列化，拿到调用的接口以及函数，通过接口信息获取先前注册的BlockingService，再调用BlockingService的callBlockingMethod区分调用的那个函数，然后调用<br>NameNodeRpcServer对象执行业务逻辑</li>
+<li>执行完业务逻辑后handler会将结果序列化后直接发送会客户端，如果没能完全发送回客户端，会在channel上注册OP_WRITE事件，将call对象放到SelectionKey里</li>
+<li>Responder线程会等待socket可以写入后，将SelectionKey中的call取出进行异步返回结果给客户端，如果还是无法写成功，connection会被关闭，结果也会被丢弃</li>
+<li>客户端读取in的输入流反序列化结果数据，将结果保存到rpcResponse并notify唤醒client在call上等待的线程处理返回结果，这个call上等待的线程就是客户端调用DFSClient执行rename的线程</li>
 </ul>
-<h4 id="ReplicaMap"><a href="#ReplicaMap" class="headerlink" title="ReplicaMap"></a>ReplicaMap</h4><ul>
-<li>存储了DataNode上所有副本在内存的抽象，主要是存储一个索引信息，通过bpid查询到对应的数据块副本ReplicaInfo</li>
-<li>ReplicaInfo 上则存储的是副本关联的文件以及meta文件，同时可以索引到数据块副本所在的块池以及所在的存储目录</li>
+<h2 id="数据包格式"><a href="#数据包格式" class="headerlink" title="数据包格式"></a>数据包格式</h2><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_packet.png" alt></p>
+<ul>
+<li>length： 每个protobuf类型的数据都包含length字段为writeDelimitedTo()方法会先写入数据的length 在写入数据</li>
+<li>RpcRequestHeaderProto：PPC调用头域，保存了callId,clientId,rpcKind等重要信息。服务器发回的响应消息中会带回callId,clientId等信息，用于提取call，鉴权等</li>
+<li>RpcRequest：这是在ProtobufRpcEngine.Invoker.invoke()方法中构造RpcRequestWrapper类。包括两部分类容<ul>
+<li>requestHeader：请求元信息，在什么结构上调用什么方法</li>
+<li>requestParam：请求参数，使用protobuf封装的，例如RenameRequestProto参数</li>
 </ul>
-<h4 id="FSDataSetCache"><a href="#FSDataSetCache" class="headerlink" title="FSDataSetCache"></a>FSDataSetCache</h4><ul>
-<li>管理缓存的数据块副本集合，一个数据块副本缓存具体的操作是通过MappableBlock进行抽象</li>
-<li>数据块是通过NIO的FileChannel.map操作将文件内容共享到内存中方便直接读写</li>
-</ul>
-<h3 id="BlockPoolManager"><a href="#BlockPoolManager" class="headerlink" title="BlockPoolManager"></a>BlockPoolManager</h3><ul>
-<li>BlockPoolManager 主要管理在DataNode上的与块池的管理，主要是管理逻辑上的操作，例如汇报以及增删等</li>
-<li>BlockPoolManager 内部会通过一个BPOfferService来管理单个块池</li>
-<li>BPOfferService 内部则通过两个BPServiceActor与两个NameNode进行通信，主要是向NameNode发送心跳，增量数据块汇报，全量数据块汇报，缓存数据块汇报以及执行返回的NameNode指令等</li>
-</ul>
-<h3 id="DataBlockScanner"><a href="#DataBlockScanner" class="headerlink" title="DataBlockScanner"></a>DataBlockScanner</h3><ul>
-<li>主要是周期性执行DataNode存储目录下的所有块池的数据块验证工作，将损坏的数据块报告给NameNode</li>
-<li>验证工作会执行很长时间，而且21天才会执行一次，就是对数据块读出来进行checksum校验，具体某个块池通过BlockPoolSliceScanner执行校验</li>
-</ul>
-<h3 id="DirectoryScanner"><a href="#DirectoryScanner" class="headerlink" title="DirectoryScanner"></a>DirectoryScanner</h3><ul>
-<li>DirectoryScanner是扫描磁盘上的数据块信息，检查是否和内存中FsDataSetImpl中保存的数据块信息一致。如果不一致需要跟新FsDataSetImpl的数据块信息</li>
-<li>数据块信息验证只验证FINALIZED状态的数据块</li>
-</ul>
-<h2 id="数据读写接口"><a href="#数据读写接口" class="headerlink" title="数据读写接口"></a>数据读写接口</h2><ul>
-<li>Client和DataNode之前的数据读写都是通过DataTransferProtocol来定义的，采用的是直接socket流式接口通信而不是RPC</li>
-<li>主要是涉及的操作包括数据块副本的读，写，复制，替换，以及短路读等接口</li>
-<li>客户端为一个Sender封装的是与DataNode通信时的操作参数的ProtoBuf序列化，并通过Peer与DataNode通信</li>
-<li>DataNode端则通过Receiver进行协议协议解析，子类DataXceiver进行与底层操作系统交互接收发送数据</li>
-</ul>
-<h3 id="读数据"><a href="#读数据" class="headerlink" title="读数据"></a>读数据</h3><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_read.png" alt></p>
-<ol>
-<li>客户端的Sender发起socket请求到DataNode，成功连接后将读写流保存到Peer中</li>
-<li>DataNode端通过DataXceiverServer接受客户端发起的socket连接，并在构造一个DataXceiver线程放到线程池中处理请求，并将Peer保存到DataXceiver</li>
-<li>客户端Sender发起readblock请求码到DataXceiver</li>
-<li>DataXceiver 则通过父类的Receiver的方法反序列化ProtoBuf的请求</li>
-<li>DataXceiver 构造一个BlockSender处理缓存策略以及获取block的文件和meta文件，定位要读取的offset。然后送请求成功的消息给Sender，并携带checksum信息到Sender，同步checksum的类型和多少数据做checksum验证</li>
-<li>DataXceiver 发起managerOsCache的请求将要读取的数据缓存到操作系统内存（默认缓存4M），同时换出要无用的缓存数据，缓存数据的操作有一个Readahead线程池进行异步操作</li>
-<li>BlockSender 将数据打包成一个个Packet发送到客户端，Packet中包含了checksum验证结果以及data数据，发送完数据最后发送一个空包表示结束</li>
-<li>如果是零拷贝传输的话，DataNode不会读取到data数据到用户内存，所以BlockSender只是将checksum的数据发送给客户端，验证是在客户端进行的，客户端最后要将验证结果再发送给DataXceiver</li>
-</ol>
-<h3 id="写数据"><a href="#写数据" class="headerlink" title="写数据"></a>写数据</h3><p><img src="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210425/datanode_write.png" alt></p>
-<ol>
-<li>客户端的Sender发起socket请求到DataNode，成功连接后将读写流保存到Peer中</li>
-<li>DataNode端通过DataXceiverServer接受客户端发起的socket连接，并在构造一个DataXceiver线程放到线程池中处理请求，并将Peer保存到DataXceiver</li>
-<li>客户端Sender发起readblock请求码到DataXceiver</li>
-<li>DataXceiver 则通过父类的Receiver的方法反序列化ProtoBuf的请求,构造BlockReceiver在指定的块池管理的目录下面创建新的rbw文件以及存储checksum的meta文件。DataXceiver转发请求到下游数据节点，下游数据节点做同样的解析，然后递归的返回成功给上游节点，如果中间有节点异常则会记录错误节点到返回信息中返回给客户端</li>
-<li>BlockReceiver 启动PacketResponder阻塞读取下游的mirrorIn字节流，下游客户端收到成功信息后会将数据打包成packet发送给下游节点，DataNode01从in输入字节流中读取packet后复制该packet的sqno等meta信息放入PacketResponder处理的阻塞队里中等待下游发送ack进行处理</li>
-<li>DataNode01的BlockReceiver然后将数据写入mirrorOut转发到下游</li>
-<li>BlockReceiver再将数据写入并执行flush，注意这里的flush调用后只会把write的数据从用户空间写入内核空间，如果没有设置sync则会调用一个异步任务去刷写内核空间数据到磁盘，如果有设置sync则会调用sync将数据从内核空间写入磁盘。如果写入的offset不是在checksum块的边界还要重新进行checksum，如果在边界上则直接使用packet发送过来的checksum结果</li>
-<li>在DataNode01发送数据到DataNode02，在DataNode02上也执行和DataNode01相同的流程，在写到最后一个节点DataNode03时，DataNode03会先执行checksum校验数据正确，然后将数据写入到磁盘并flush，没有设置sync的话同样启动一个异步任务刷写内核空间数据到磁盘</li>
-<li>DataNode03然后将数据的sqno信息放到PacketResponder的阻塞队列交给PacketResponder去发送ack消息到上游</li>
-<li>DataNode03 成功写入后会通过PacketResponder判断是否是block的最后一个packet，如果是就提交该block给namenode。然后将写入是否成功的ack发送给上游节点</li>
-<li>DataNode02读取处理ack的流程和DataNode01一样这里直接介绍DataNode01，上游节点的DataNode01读取mirrorIn的ack后读取阻塞队里的第一个packet比较两者的seqno是否相等,不相等抛出异常，检查是否是block的最后一个包（最后一个为空包）如果是则通知namenode更新block所在的datanode节点。将下游的ack和该节点的是否写入成功的状态合并打包并发送到上游客户端</li>
-</ol>
-<h2 id="附录"><a href="#附录" class="headerlink" title="附录"></a>附录</h2><ul>
-<li><a href="https://wenchao.ren/posts/%E7%A1%AE%E4%BF%9D%E6%95%B0%E6%8D%AE%E8%90%BD%E7%9B%98/" target="_blank" rel="noopener">写缓存区落盘相关</a></li>
+</li>
 </ul>
 
       
@@ -331,7 +304,7 @@
     <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
     <p>扫一扫，分享到微信</p>
     <div class="wx-qrcode">
-      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2021/04/25/DataNode简介/" alt="微信分享二维码">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2021/05/03/HDFS RPC简介/" alt="微信分享二维码">
     </div>
 </div>
 
@@ -346,18 +319,9 @@
   
 <nav id="article-nav">
   
-    <a href="/2021/04/29/HDFS 租约机制/" id="article-nav-newer" class="article-nav-link-wrap">
-      <i class="icon-circle-left"></i>
-      <div class="article-nav-title">
-        
-          HDFS 租约机制
-        
-      </div>
-    </a>
   
-  
-    <a href="/2021/04/18/Editlog和FSimage概述/" id="article-nav-older" class="article-nav-link-wrap">
-      <div class="article-nav-title">Editlog和FSimage概述</div>
+    <a href="/2021/04/29/HDFS 租约机制/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">HDFS 租约机制</div>
       <i class="icon-circle-right"></i>
     </a>
   
@@ -384,7 +348,7 @@
                 </span>
                 <span class="tooltip-content">
                     <div class="toc-article">
-                    <ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#DataNode-简介"><span class="toc-number">1.</span> <span class="toc-text">DataNode 简介</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#背景"><span class="toc-number">1.1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#数据存储"><span class="toc-number">1.2.</span> <span class="toc-text">数据存储</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#FSDataSet"><span class="toc-number">1.2.1.</span> <span class="toc-text">FSDataSet</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#DataStorage"><span class="toc-number">1.2.1.1.</span> <span class="toc-text">DataStorage</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#FSVolumeList"><span class="toc-number">1.2.1.2.</span> <span class="toc-text">FSVolumeList</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#ReplicaMap"><span class="toc-number">1.2.1.3.</span> <span class="toc-text">ReplicaMap</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#FSDataSetCache"><span class="toc-number">1.2.1.4.</span> <span class="toc-text">FSDataSetCache</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#BlockPoolManager"><span class="toc-number">1.2.2.</span> <span class="toc-text">BlockPoolManager</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#DataBlockScanner"><span class="toc-number">1.2.3.</span> <span class="toc-text">DataBlockScanner</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#DirectoryScanner"><span class="toc-number">1.2.4.</span> <span class="toc-text">DirectoryScanner</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#数据读写接口"><span class="toc-number">1.3.</span> <span class="toc-text">数据读写接口</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#读数据"><span class="toc-number">1.3.1.</span> <span class="toc-text">读数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#写数据"><span class="toc-number">1.3.2.</span> <span class="toc-text">写数据</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#附录"><span class="toc-number">1.4.</span> <span class="toc-text">附录</span></a></li></ol></li></ol>
+                    <ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#HDFS-RPC简介"><span class="toc-number">1.</span> <span class="toc-text">HDFS RPC简介</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#背景"><span class="toc-number">1.1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#接口"><span class="toc-number">1.2.</span> <span class="toc-text">接口</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#客户端-amp-服务端"><span class="toc-number">1.3.</span> <span class="toc-text">客户端 &amp; 服务端</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#数据包格式"><span class="toc-number">1.4.</span> <span class="toc-text">数据包格式</span></a></li></ol></li></ol>
                     </div>
                 </span>
             </div>
