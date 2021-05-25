@@ -19,7 +19,7 @@
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_protocol.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_client_server.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/gp1314/blog-resource/master/images/20210503/rpc_packet.png">
-<meta property="og:updated_time" content="2021-05-03T13:37:46.401Z">
+<meta property="og:updated_time" content="2021-05-03T13:38:07.726Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="HDFS RPC简介">
 <meta name="twitter:description" content="HDFS RPC简介">
@@ -71,7 +71,7 @@
 		<nav>
     			总文章数 11
 		</nav>
-		总字数 <span class="post-count">22.5k</span>
+		总字数 <span class="post-count">24.3k</span>
 		<nav class="header-smart-menu">
     		
     			
@@ -221,7 +221,7 @@
 <li>reader的工作线程将在等待队列pendingConnections中的Connection取出并注册OP_READ事件等待客户端发起数据。其中pendingConnections默认初始化100个元素，是一个LinkedBlockingQueue队列理论上最大为Int.MAX</li>
 <li>回到客户端，客户端创建Connection后构造一个call对象，call对象是一个请求的抽象，包含了请求的参数，rpc类型，最重要的是有callid，这个callid是客户端可服务端索引一个请求的依据。通过Connection将call对象交给sendParamsExecutor线程池发送到服务端，并且call对象也会加到Connection对象的calls队列中等待服务端的返回结果</li>
 <li>服务端的reader接收到了客户端发来的数据，将解析出RpcRequestHeaderProto，该对象中保存了callid，retry次数，客户端id等信息。再将后面RpcRequest请求反序列化出来，构造call对象，然后将call对象放到callQueue队列中等待处理, callQueue默认为一个LinkedBlockingQueue最大长度为handler线程个数 * 100</li>
-<li>handler 线程池消费callQueue的call，通过rpckind找到ProtoBufRpcInvoker，调用该对象的call()将请求进一步反序列化，拿到调用的接口以及函数，通过接口信息获取先前注册的BlockingService，再调用BlockingService的callBlockingMethod区分调用的那个函数，然后调用<br>NameNodeRpcServer对象执行业务逻辑。默认handler为10个线程，一般线上集群需要调整到100以上，</li>
+<li>handler 线程池消费callQueue的call，通过rpckind找到ProtoBufRpcInvoker，调用该对象的call()将请求进一步反序列化，拿到调用的接口以及函数，通过接口信息获取先前注册的BlockingService，再调用BlockingService的callBlockingMethod区分调用的那个函数，然后调用<br>NameNodeRpcServer对象执行业务逻辑。默认handler为10个线程，一般线上集群需要调整到100以上</li>
 <li>执行完业务逻辑后handler会将结果序列化后直接发送会客户端，如果没能完全发送回客户端，会在channel上注册OP_WRITE事件，将call对象放到SelectionKey里</li>
 <li>Responder线程会等待socket可以写入后，将SelectionKey中的call取出进行异步返回结果给客户端，如果还是无法写成功，connection会被关闭，结果也会被丢弃</li>
 <li>客户端读取in的输入流反序列化结果数据，将结果保存到rpcResponse并notify唤醒client在call上等待的线程处理返回结果，这个call上等待的线程就是客户端调用DFSClient执行rename的线程</li>
